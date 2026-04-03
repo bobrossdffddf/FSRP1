@@ -1,0 +1,140 @@
+User Select
+A User Select is an interactive component that allows users to select one or more users in a message or modal. Options are automatically populated based on the server’s available users.
+User Selects can be configured for both single-select and multi-select behavior. When a user finishes making their choice(s) your app receives an interaction.
+User Selects are available in messages and modals. They must be placed inside an Action Row in messages and a Label in modals.
+User Select Structure
+Field	Type	Description
+type	integer	5 for user select
+id?	integer	Optional identifier for component
+custom_id	string	ID for the select menu; 1-100 characters
+placeholder?	string	Placeholder text if nothing is selected; max 150 characters
+default_values?	array of default value objects	List of default values for auto-populated select menu components; number of default values must be in the range defined by min_values and max_values
+min_values?*	integer	Minimum number of items that must be chosen (defaults to 1); min 0 (see note), max 25
+max_values?	integer	Maximum number of items that can be chosen (defaults to 1); max 25
+required?**	boolean	Whether the user select is required to answer in a modal (defaults to true)
+disabled?***	boolean	Whether select menu is disabled in a message (defaults to false)
+* min_values must be either omitted or at least 1 if required is omitted or true.
+** The required field is only available for User Selects in modals. It is ignored in messages.
+*** Using disabled in a modal will result in an error. Modals can not currently have disabled components in them.
+Select Default Value Structure
+Field	Type	Description
+id	snowflake	ID of a user, role, or channel
+type	string	Type of value that id represents. Either "user", "role", or "channel"
+User Select Interaction Response Structure
+Field	Type	Description
+type*	integer	5 for a User Select
+component_type*	integer	5 for a User Select
+id	integer	Unique identifier for the component
+custom_id	string	Developer-defined identifier for the input; 1-100 characters
+resolved	resolved data	Resolved entities from selected options
+values	array of snowflakes	IDs of the selected users
+* In message interaction responses component_type will be returned and in modal interaction responses type will be returned.
+Examples
+Message Example
+
+Message create payload with a User Select component
+
+Message Interaction Data Example
+
+When a user interacts with a User Select in a message
+
+Modal Example
+
+Modal create payload with a User Select component
+
+Example of a modal with a User Select
+{
+  "type": 9,
+  "data": {
+    "custom_id": "user_modal",
+    "title": "User Chooser",
+    "components": [
+      {
+        "type": 18, // ComponentType.LABEL
+        "label": "Choose your users",
+        "component": {
+          "type": 5, // ComponentType.USER_SELECT
+          "custom_id": "user_selected",
+          "max_values": 5,
+          "required": true
+        }
+      }
+    ]
+  }
+}
+Modal Submit Interaction Data Example
+
+When a user submits a modal containing a User Select
+
+When a user submits a modal that contains a User Select, this is the basic form of the interaction data payload you will receive. The full payload is available in the interaction reference.
+{
+  "type": 5, // InteractionType.MODAL_SUBMIT
+  ...additionalInteractionFields, // See the Interaction documentation for all fields
+
+  "data": {
+    "custom_id": "user_modal",
+    "components": [
+      {
+        "component": {
+          "custom_id": "user_selected",
+          "id": 2,
+          "type": 5,
+          "values": [
+            "11111111111111111"
+          ]
+        },
+        "id": 1,
+        "type": 18
+      }
+    ],
+    "resolved": {
+      "members": {
+        "11111111111111111": {
+          "avatar": null,
+          "banner": null,
+          "collectibles": null,
+          "communication_disabled_until": null,
+          "flags": 0,
+          "joined_at": "2025-04-02T23:07:21.476000+00:00",
+          "nick": "Ant",
+          "pending": false,
+          "permissions": "4503599627370495",
+          "premium_since": null,
+          "roles": [
+            "1357409927680889032"
+          ],
+          "unusual_dm_activity_until": null
+        }
+      },
+      "users": {
+        "11111111111111111": {
+          "avatar": "a_b15bd8ee42e3c3d9a7de129fee60bc84",
+          "avatar_decoration_data": null,
+          "clan": null,
+          "collectibles": {
+            "nameplate": {
+              "asset": "nameplates/spell/white_mana/",
+              "expires_at": null,
+              "label": "COLLECTIBLES_SPELL_WHITE_MANA_NP_A11Y",
+              "palette": "bubble_gum",
+              "sku_id": "1379220459203072050"
+            }
+          },
+          "discriminator": "0",
+          "display_name_styles": {
+            "colors": [
+              16777215
+            ],
+            "effect_id": 4,
+            "font_id": 3
+          },
+          "global_name": "Anthony",
+          "id": "11111111111111111",
+          "primary_guild": null,
+          "public_flags": 65,
+          "username": "actuallyanthony"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,32 @@
+[dotenv@17.3.1] injecting env (0) from .env -- tip: 🔐 prevent committing .env to code: https://dotenvx.com/precommit
+Polling Manager: Ready. Starting loops...
+Ready! Logged in as LARP Server Managment.#7291
+[Checks] Active Players: 0 | Guild Cache: 1
+[Checks] Active Players: 0 | Guild Cache: 1
+[2026-03-10T18:13:23.485Z] [INFO] [CMD:emoji] Executed by joneebyrp (998003655657660477) in #🤖・cmds | options: none
+[2026-03-10T18:13:24.297Z] [ERROR] [CMD:emoji] Execution failed: Interaction has already been acknowledged.
+DiscordAPIError[40060]: Interaction has already been acknowledged.
+    at handleErrors (/home/runner/workspace/node_modules/@discordjs/rest/dist/index.js:762:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async BurstHandler.runRequest (/home/runner/workspace/node_modules/@discordjs/rest/dist/index.js:866:23)
+    at async _REST.request (/home/runner/workspace/node_modules/@discordjs/rest/dist/index.js:1307:22)
+    at async ChatInputCommandInteraction.reply (/home/runner/workspace/node_modules/discord.js/src/structures/interfaces/InteractionResponses.js:193:22)
+    at async Object.execute (/home/runner/workspace/src/commands/emoji.js:54:21)
+    at async Object.execute (/home/runner/workspace/src/events/interactionCreate.js:115:21)
+[2026-03-10T18:13:24.409Z] [ERROR] [CMD:emoji] Failed to send reply: Interaction has already been acknowledged.
+[2026-03-10T18:13:29.981Z] [INFO] [CMD:playerlist] Executed by joneebyrp (998003655657660477) in #🤖・cmds | options: none
+Failed to defer reply: Interaction has already been acknowledged.
+[2026-03-10T18:13:30.532Z] [ERROR] [CMD:playerlist] Execution failed: Interaction has already been acknowledged.
+DiscordAPIError[40060]: Interaction has already been acknowledged.
+    at handleErrors (/home/runner/workspace/node_modules/@discordjs/rest/dist/index.js:762:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async BurstHandler.runRequest (/home/runner/workspace/node_modules/@discordjs/rest/dist/index.js:866:23)
+    at async _REST.request (/home/runner/workspace/node_modules/@discordjs/rest/dist/index.js:1307:22)
+    at async ChatInputCommandInteraction.reply (/home/runner/workspace/node_modules/discord.js/src/structures/interfaces/InteractionResponses.js:193:22)
+    at async Object.execute (/home/runner/workspace/src/commands/playerlist.js:99:13)
+    at async Object.execute (/home/runner/workspace/src/events/interactionCreate.js:115:21)
+[2026-03-10T18:13:30.649Z] [ERROR] [CMD:playerlist] Failed to send reply: Interaction has already been acknowledged.
+[Checks] Active Players: 0 | Guild Cache: 2
+
+
+

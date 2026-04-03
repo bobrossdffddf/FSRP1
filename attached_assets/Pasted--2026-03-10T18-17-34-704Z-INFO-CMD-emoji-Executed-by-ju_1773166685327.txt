@@ -1,0 +1,25 @@
+[2026-03-10T18:17:34.704Z] [INFO] [CMD:emoji] Executed by justawacko_ (848356730256883744) in #🤖・cmds | options: none
+[2026-03-10T18:17:36.485Z] [INFO] [CMD:playerlist] Executed by justawacko_ (848356730256883744) in #🤖・cmds | options: none
+Failed to defer reply: Unknown interaction
+[2026-03-10T18:17:37.023Z] [ERROR] [CMD:playerlist] Execution failed: Interaction has already been acknowledged.
+DiscordAPIError[40060]: Interaction has already been acknowledged.
+    at handleErrors (/home/runner/workspace/node_modules/@discordjs/rest/dist/index.js:762:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async BurstHandler.runRequest (/home/runner/workspace/node_modules/@discordjs/rest/dist/index.js:866:23)
+    at async _REST.request (/home/runner/workspace/node_modules/@discordjs/rest/dist/index.js:1307:22)
+    at async ChatInputCommandInteraction.reply (/home/runner/workspace/node_modules/discord.js/src/structures/interfaces/InteractionResponses.js:193:22)
+    at async Object.execute (/home/runner/workspace/src/commands/playerlist.js:99:13)
+    at async Object.execute (/home/runner/workspace/src/events/interactionCreate.js:122:21)
+[2026-03-10T18:17:37.111Z] [ERROR] [CMD:playerlist] Failed to send reply: Interaction has already been acknowledged.
+[2026-03-10T18:17:42.831Z] [INFO] [CMD:emoji] Executed by joneebyrp (998003655657660477) in #🤖・cmds | options: none
+[2026-03-10T18:17:43.323Z] [ERROR] [CMD:emoji] Execution failed: Interaction has already been acknowledged.
+DiscordAPIError[40060]: Interaction has already been acknowledged.
+    at handleErrors (/home/runner/workspace/node_modules/@discordjs/rest/dist/index.js:762:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async BurstHandler.runRequest (/home/runner/workspace/node_modules/@discordjs/rest/dist/index.js:866:23)
+    at async _REST.request (/home/runner/workspace/node_modules/@discordjs/rest/dist/index.js:1307:22)
+    at async ChatInputCommandInteraction.reply (/home/runner/workspace/node_modules/discord.js/src/structures/interfaces/InteractionResponses.js:193:22)
+    at async Object.execute (/home/runner/workspace/src/commands/emoji.js:54:21)
+    at async Object.execute (/home/runner/workspace/src/events/interactionCreate.js:122:21)
+[2026-03-10T18:17:43.405Z] [ERROR] [CMD:emoji] Failed to send reply: Interaction has already been acknowledged.
+[Checks] Active Players: 0 | Guild Cache: 3

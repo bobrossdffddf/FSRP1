@@ -1,0 +1,81 @@
+
+Radio Group
+A Radio Group is an interactive component for selecting exactly one option from a defined list. Radio Groups are available in modals and must be placed inside a Label.
+​
+Radio Group Structure
+Field	Type	Description
+type	integer	21 for radio group
+id?	integer	Optional identifier for component
+custom_id	string	Developer-defined identifier for the input; 1-100 characters
+options	array of radio group options	List of options to show; min 2, max 10
+required?	boolean	Whether a selection is required to submit the modal (defaults to true)
+​
+Radio Group Option Structure
+Field	Type	Description
+value	string	Dev-defined value of the option; max 100 characters
+label	string	User-facing label of the option; max 100 characters
+description?	string	Optional description for the option; max 100 characters
+default?	boolean	Shows the option as selected by default
+​
+Radio Group Interaction Response Structure
+Field	Type	Description
+type	integer	21 for a Radio Group
+id	integer	Unique identifier for the component
+custom_id	string	Developer-defined identifier for the input; 1-100 characters
+value	?string	The value of the selected option, or null if no option is selected
+​
+Examples
+Modal Example
+
+Modal create payload with a Radio Group component
+
+Example of a modal with a Radio Group
+{
+  "type": 9,
+  "data": {
+    "custom_id": "class_selection_modal",
+    "title": "Class Selection",
+    "components": [
+      {
+        "type": 18, // ComponentType.LABEL
+        "label": "Choose your class",
+        "description": "Your class detertmines the style of play for your character.",
+        "component": {
+          "type": 21, // ComponentType.RADIO_GROUP
+          "custom_id": "class_radio",
+          "options": [
+            {"value": "warrior", "label": "Warrior", "description": "Strong and brave"},
+            {"value": "rogue", "label": "Rogue", "description": "Weak and squishy"},
+            {"value": "wizard", "label": "Wizard", "description": "Nerd"},
+            {"value": "bard", "label": "Bard", "description": "Annoys everyone"},
+            {"value": "witch_doctor", "label": "Witch Doctor", "description": "Actually a pretty cool option"}
+          ]
+        }
+      }
+    ]
+  }
+}
+Modal Submit Interaction Data Example
+
+When a user submits a modal containing a Radio Group
+
+{
+  "type": 5, // InteractionType.MODAL_SUBMIT
+  ...additionalInteractionFields, // See the Interaction documentation for all fields
+
+  "data": {
+    "custom_id": "class_selection_modal",
+    "components": [
+      {
+        "id": 1,
+        "type": 18, // ComponentType.LABEL
+        "component": {
+          "custom_id": "class_radio",
+          "id": 2,
+          "type": 21, // ComponentType.RADIO_GROUP
+          "value": "warrior"
+        }
+      }
+    ]
+  }
+}
