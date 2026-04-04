@@ -2,6 +2,7 @@ const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const { runCommand } = require('../api/erlc');
 const { upsertAnnouncementMessage } = require('../utils/announcementMessage');
 const { setPriorityButtonState } = require('../utils/priorityMessage');
+const { setSsuChannelState } = require('../utils/serverVoiceChannels');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -46,6 +47,12 @@ module.exports = {
 
             // Grey out / disable the priority request button during SSD
             await setPriorityButtonState(client, guildId, true);
+
+            await setSsuChannelState({
+                guild: interaction.guild,
+                client,
+                isSsu: false,
+            });
 
             const shutdownResult = await runCommand(':shutdown');
             let msg;

@@ -2,6 +2,7 @@ const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const { getServerInfo } = require('../api/erlc');
 const { upsertAnnouncementMessage } = require('../utils/announcementMessage');
 const { setPriorityButtonState } = require('../utils/priorityMessage');
+const { setSsuChannelState } = require('../utils/serverVoiceChannels');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -59,6 +60,13 @@ module.exports = {
 
             // Re-enable the priority request button now that the server is up
             await setPriorityButtonState(client, guildId, false);
+
+            await setSsuChannelState({
+                guild: interaction.guild,
+                client,
+                isSsu: true,
+                joinCode: serverInfo?.JoinKey,
+            });
 
             await interaction.editReply('SSU Announced successfully.');
         } catch (e) {
