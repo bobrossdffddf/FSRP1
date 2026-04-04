@@ -1,4 +1,5 @@
 const { Events } = require('discord.js');
+const { updateMemberCountChannel } = require('../utils/serverVoiceChannels');
 
 const AUTO_ROLE_ID = '1489733107006312558';
 
@@ -11,5 +12,7 @@ module.exports = {
         } catch (e) {
             console.error(`[AutoRole] Failed to assign role to ${member.user.tag}:`, e.message);
         }
+
+        await updateMemberCountChannel(member.guild);
     },
 };
