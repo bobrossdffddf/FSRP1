@@ -52,9 +52,14 @@ const updateHardcodeListMessage = async (targetInteraction, client, page, actorI
     }
 
     if (targetInteraction.isModalSubmit()) {
-        const message = await targetInteraction.channel.messages.fetch(targetInteraction.customId.split(':')[4]);
-        if (message) {
-            await message.edit({ embeds: [view.embed], components: view.components });
+        try {
+            const messageId = targetInteraction.customId.split(':')[4];
+            const message = await targetInteraction.channel.messages.fetch(messageId);
+            if (message) {
+                await message.edit({ embeds: [view.embed], components: view.components });
+            }
+        } catch (e) {
+            console.warn('[Hardcode] Could not update original list message (it may have been deleted):', e.message);
         }
     }
 };

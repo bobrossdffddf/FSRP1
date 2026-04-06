@@ -76,6 +76,19 @@ async function handlePriorityRequestButton(interaction) {
                                 },
                             ],
                         },
+                        {
+                            type: 1, // ActionRow (for the banner URL input)
+                            components: [
+                                {
+                                    type: 4, // TextInput
+                                    custom_id: 'banner_url',
+                                    label: 'Banner Image URL (optional)',
+                                    style: 1, // Short
+                                    required: false,
+                                    placeholder: 'https://i.imgur.com/example.png',
+                                },
+                            ],
+                        },
                     ],
                 },
             },
@@ -118,17 +131,24 @@ async function handlePriorityModal(interaction, client) {
 
     // --- Parse standard text input (still in an ActionRow, discord.js handles it) ---
     let durationRaw = '';
+    let bannerUrl = '';
     try {
         durationRaw = interaction.fields.getTextInputValue('duration_seconds').trim();
-    } catch (_) {
-        // fallback: look in rawData components for ActionRow text input
-        if (rawData?.components) {
-            for (const comp of rawData.components) {
-                if (comp.type === 1) {
-                    for (const sub of comp.components ?? []) {
-                        if (sub.custom_id === 'duration_seconds') {
-                            durationRaw = sub.value ?? '';
-                        }
+    } catch (_) {}
+    try {
+        bannerUrl = interaction.fields.getTextInputValue('banner_url').trim();
+    } catch (_) {}
+
+    // fallback: look in rawData components for ActionRow text inputs
+    if (rawData?.components) {
+        for (const comp of rawData.components) {
+            if (comp.type === 1) {
+                for (const sub of comp.components ?? []) {
+                    if (sub.custom_id === 'duration_seconds' && !durationRaw) {
+                        durationRaw = sub.value ?? '';
+                    }
+                    if (sub.custom_id === 'banner_url' && !bannerUrl) {
+                        bannerUrl = sub.value ?? '';
                     }
                 }
             }
@@ -170,6 +190,10 @@ async function handlePriorityModal(interaction, client) {
     await thread.members.add(interaction.user.id).catch(() => {});
 
     // --- Build the thread embed ---
+    const isValidUrl = (url) => {
+        try { return Boolean(new URL(url)); } catch (_) { return false; }
+    };
+
     const embed = new EmbedBuilder()
         .setTitle(`🚨 Priority Request — ${priorityLabel}`)
         .setColor(0xFF0000)
@@ -183,6 +207,10 @@ async function handlePriorityModal(interaction, client) {
             }
         )
         .setTimestamp();
+
+    if (bannerUrl && isValidUrl(bannerUrl)) {
+        embed.setImage(bannerUrl);
+    }
 
     const approveBtn = new ButtonBuilder()
         .setCustomId(`priority_approve:${interaction.user.id}:${validDuration ? durationSecs : 0}`)

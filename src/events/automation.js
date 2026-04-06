@@ -6,7 +6,7 @@ const commsWarnings = new Map();
 
 let msgFlip = false;
 
-const IN_GAME_ROLE_ID = '1480589156177674343';
+const IN_GAME_ROLE_ID = '1489733107006312558';
 const STAFF_BYPASS_ROLE_ID = '970917178142498824';
 
 module.exports = {
