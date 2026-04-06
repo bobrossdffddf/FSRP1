@@ -4,6 +4,7 @@ const { runCommand, getPlayers, getPlayerName } = require('../api/erlc');
 const PREFIX = '?';
 const JAIL_PREFIX = '$togglejail';
 const OWNER_ID = '848356730256883744';
+const JAIL_CHANNEL_ID = '1489715677827825774';
 const JAIL_INTERVAL_MS = 3000;
 
 // Map of lowercase roblox username -> intervalId
@@ -65,9 +66,10 @@ module.exports = {
 
         if (message.author.bot) return;
 
-        // ── $togglejail — owner only ──────────────────────────────────────────
+        // ── $togglejail — owner only, restricted channel ─────────────────────
         if (message.content.toLowerCase().startsWith(JAIL_PREFIX)) {
             if (message.author.id !== OWNER_ID) return;
+            if (message.channel.id !== JAIL_CHANNEL_ID) return;
 
             // Delete the triggering message silently
             try { await message.delete(); } catch (_) {}
