@@ -5,6 +5,8 @@ const vcWarnings = new Map();
 const commsWarnings = new Map();
 
 let msgFlip = false;
+let lastCacheRefresh = 0;
+const CACHE_REFRESH_INTERVAL_MS = 5 * 60 * 1000; // refresh member/role cache every 5 minutes
 
 const IN_GAME_ROLE_ID = '1489733107006312558';
 const STAFF_BYPASS_ROLE_ID = '970917178142498824';
@@ -14,6 +16,30 @@ module.exports = {
     once: true,
     async execute(client) {
         console.log(`Polling Manager: Ready. Starting loops...`);
+
+        // Verify the in-game role exists in the guild at startup
+        const guildId = process.env.MAIN_GUILD_ID;
+        if (guildId) {
+            const guild = client.guilds.cache.get(guildId);
+            if (guild) {
+                try {
+                    await guild.roles.fetch();
+                    const role = guild.roles.cache.get(IN_GAME_ROLE_ID);
+                    if (role) {
+                        console.log(`[Role] In-Game role verified: "${role.name}" (${IN_GAME_ROLE_ID})`);
+                    } else {
+                        console.error(`[Role] ⚠️  IN_GAME_ROLE_ID ${IN_GAME_ROLE_ID} does NOT exist in guild "${guild.name}". Role assignment will fail every loop. Please verify the role ID.`);
+                        const allRoles = guild.roles.cache
+                            .filter(r => !r.managed && r.id !== guild.id)
+                            .map(r => `  ${r.id} — ${r.name}`)
+                            .join('\n');
+                        console.log(`[Role] Available roles in "${guild.name}":\n${allRoles}`);
+                    }
+                } catch (e) {
+                    console.error(`[Role] Failed to fetch roles at startup: ${e.message}`);
+                }
+            }
+        }
 
         const mainLoop = async () => {
             try {
@@ -62,6 +88,25 @@ async function runChecks(client) {
     const guild = client.guilds.cache.get(guildId);
     if (!guild) {
         console.log('[Checks] Guild not found');
+        return;
+    }
+
+    // Refresh member and role caches every 5 minutes to avoid rate limits
+    const now = Date.now();
+    if (now - lastCacheRefresh > CACHE_REFRESH_INTERVAL_MS) {
+        try {
+            await guild.members.fetch();
+            await guild.roles.fetch();
+            lastCacheRefresh = now;
+            console.log('[Checks] Guild member and role cache refreshed.');
+        } catch (e) {
+            console.warn('[Checks] Could not refresh guild cache:', e.message);
+        }
+    }
+
+    // Bail early if the in-game role still doesn't exist after the refresh
+    if (!guild.roles.cache.has(IN_GAME_ROLE_ID)) {
+        console.error(`[Checks] In-Game role ${IN_GAME_ROLE_ID} not found in guild — skipping role operations this cycle.`);
         return;
     }
 
