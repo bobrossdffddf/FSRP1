@@ -6,6 +6,8 @@ const {
 } = require('discord.js');
 
 const PRIORITY_ROLE_ID = '1487127238003396645';
+const PRIORITY_BANNER_URL = 'https://i.postimg.cc/59HmqpCR/INFormation.png'; // replace with your banner image URL
+const PRIORITY_PHOTO_LINK_URL = 'https://i.postimg.cc/59HmqpCR/INFormation.png'; // replace with your photo link URL
 
 function buildPriorityEmbed(disabled = false) {
     return new EmbedBuilder()
@@ -20,6 +22,7 @@ function buildPriorityEmbed(disabled = false) {
             name: 'Available Priorities',
             value: '• **Evading LEO** — Need 2+ players\n• **Hostage** — Need 3+ players\n• **LEO Shootout**\n• **Bank Robbery** — Need 4+ players',
         })
+        .setImage(PRIORITY_BANNER_URL)
         .setFooter({ text: disabled ? 'Priorities are closed — SSD active' : 'Florida State Roleplay' })
         .setTimestamp();
 }
@@ -30,7 +33,11 @@ function buildPriorityRow(disabled = false) {
             .setCustomId('priority_request')
             .setLabel(disabled ? 'Priorities Closed' : 'Request a Priority')
             .setStyle(disabled ? ButtonStyle.Secondary : ButtonStyle.Danger)
-            .setDisabled(disabled)
+            .setDisabled(disabled),
+        new ButtonBuilder()
+            .setURL(PRIORITY_PHOTO_LINK_URL)
+            .setLabel('View Photo')
+            .setStyle(ButtonStyle.Link)
     );
 }
 
