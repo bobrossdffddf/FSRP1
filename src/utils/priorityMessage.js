@@ -15,7 +15,7 @@ function buildPriorityEmbed(disabled = false) {
         .setDescription(
             disabled
                 ? 'Priority requests are currently **closed** while the server is shut down. They will reopen on the next Server Start Up.'
-                : '# Request a Priority/n Click the button below to submit your request — a moderator will approve or deny it.'
+                : '# Request a Priority\n Click the button below to submit your request — a moderator will approve or deny it.'
         )
         .addFields({
             name: 'Available Priorities',
