@@ -215,7 +215,7 @@ function updateBotPresence(client, guild, inGameCount, queueCount) {
     }
 
     const commsMemberCount = guild.memberCount || guild.members.cache.size;
-    client.user.setActivity(`${commsMemberCount} people in FSRP comms`, {
+    client.user.setActivity(`${commsMemberCount} people in FSRP`, {
         type: ActivityType.Watching,
     });
 }
