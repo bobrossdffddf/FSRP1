@@ -11,19 +11,35 @@ module.exports = {
         .setDefaultMemberPermissions(0n),
 
     async execute(interaction, client) {
+        // Defer separately so a stale/slow interaction doesn't abort the business logic
+        let deferred = false;
         try {
             await interaction.deferReply({ flags: 64 });
+            deferred = true;
+        } catch (e) {
+            console.error('[SSU] Failed to defer interaction:', e.message);
+        }
 
+        const safeReply = async (content) => {
+            if (!deferred) return;
+            try {
+                await interaction.editReply(typeof content === 'string' ? { content } : content);
+            } catch (e) {
+                console.error('[SSU] Failed to edit reply:', e.message);
+            }
+        };
+
+        try {
             const guildId = interaction.guild.id;
             const settings = client.settings.get(guildId);
 
             if (!settings || !settings.ssuChannelId) {
-                return await interaction.editReply({ content: 'Please configure the bot with `/setup` first.' });
+                return await safeReply('Please configure the bot with `/setup` first.');
             }
 
             const ssuChannel = client.channels.cache.get(settings.ssuChannelId);
             if (!ssuChannel) {
-                return await interaction.editReply({ content: 'The configured SSU channel could not be found.' });
+                return await safeReply('The configured SSU channel could not be found.');
             }
 
             const announcementMessageId = settings.announcementMessageId;
@@ -61,25 +77,16 @@ module.exports = {
             // Re-enable the priority request button now that the server is up
             await setPriorityButtonState(client, guildId, false);
 
-            await setSsuChannelState({
-                guild: interaction.guild,
-                client,
-                isSsu: true,
-                joinCode: serverInfo?.JoinKey,
-            });
+            await safeReply('SSU Announced successfully.');
 
-            await interaction.editReply('SSU Announced successfully.');
+            // Run channel renames after replying — they are rate-limited by Discord and
+            // should not block the interaction response or clog the REST queue.
+            setSsuChannelState({ guild: interaction.guild, client, isSsu: true, joinCode: serverInfo?.JoinKey })
+                .catch(e => console.error('[SSU] Channel state error:', e.message));
+
         } catch (e) {
             console.error('[SSU] Error:', e.message);
-            try {
-                if (!interaction.replied && !interaction.deferred) {
-                    await interaction.reply({ content: 'Failed to send SSU announcement. Check permissions.', flags: 64 });
-                } else if (interaction.deferred) {
-                    await interaction.editReply({ content: 'Failed to send SSU announcement. Check permissions.' });
-                }
-            } catch (replyError) {
-                console.error('Failed to send error reply:', replyError.message);
-            }
+            await safeReply('Failed to send SSU announcement. Check permissions.');
         }
     },
 };

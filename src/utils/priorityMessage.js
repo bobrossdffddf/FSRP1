@@ -10,16 +10,16 @@ const PRIORITY_BANNER_URL = 'https://i.postimg.cc/Bvh1B3Q5/INFormation-19.png'; 
 
 function buildPriorityEmbed(disabled = false) {
     return new EmbedBuilder()
-        .setTitle('🚨 Priority Requests')
+        .setTitle('LARP Server Management')
         .setColor(disabled ? 0x2C2F33 : 0xFF0000)
         .setDescription(
             disabled
                 ? 'Priority requests are currently **closed** while the server is shut down. They will reopen on the next Server Start Up.'
-                : 'Click the button below to submit your request — a moderator will approve or deny it.'
+                : '# Request a Priority/n Click the button below to submit your request — a moderator will approve or deny it.'
         )
         .addFields({
             name: 'Available Priorities',
-            value: '• **Evading LEO** — Need 2+ players\n• **Hostage** — Need 3+ players\n• **LEO Shootout**\n• **Bank Robbery** — Need 4+ players',
+            value: '• **Evading LEO** — 2+ players\n• **Hostage** — 3+ players\n• **LEO Shootout**\n• **Bank Robbery** — 4+ players',
         })
         .setImage(PRIORITY_BANNER_URL)
         .setFooter({ text: disabled ? 'Priorities are closed — SSD active' : 'Florida State Roleplay' })
