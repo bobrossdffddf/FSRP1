@@ -17,10 +17,6 @@ function buildPriorityEmbed(disabled = false) {
                 ? 'Priority requests are currently **closed** while the server is shut down. They will reopen on the next Server Start Up.'
                 : '# Request a Priority\n Click the button below to submit your request — a moderator will approve or deny it.'
         )
-        .addFields({
-            name: 'Available Priorities',
-            value: '• **Evading LEO** — 2+ players\n• **Hostage** — 3+ players\n• **LEO Shootout**\n• **Bank Robbery** — 4+ players',
-        })
         .setImage(PRIORITY_BANNER_URL)
         .setFooter({ text: disabled ? 'Priorities are closed — SSD active' : 'Florida State Roleplay' })
         .setTimestamp();
