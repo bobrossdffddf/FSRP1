@@ -17,7 +17,7 @@ function buildPriorityEmbed(disabled = false) {
                 : 'Click the button below to submit your request — a moderator will approve or deny it.'
         )
         .addFields({
-            name: 'Available Scenarios',
+            name: 'Available Priorities',
             value: '• **Evading LEO** — Need 2+ players\n• **Hostage** — Need 3+ players\n• **LEO Shootout**\n• **Bank Robbery** — Need 4+ players',
         })
         .setFooter({ text: disabled ? 'Priorities are closed — SSD active' : 'Florida State Roleplay' })

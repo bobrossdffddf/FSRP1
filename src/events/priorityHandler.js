@@ -9,6 +9,7 @@ const {
 const { runCommand, getPlayers, getPlayerName } = require('../api/erlc');
 
 const PRIORITY_ROLE_ID = '1487127238003396645';
+const PRIORITY_BANNER_URL = 'https://i.postimg.cc/59HmqpCR/INFormation.png'; // replace with your banner URL
 
 const PRIORITY_LABELS = {
     evading: 'Evading LEO (Need 2+ players)',
@@ -76,19 +77,6 @@ async function handlePriorityRequestButton(interaction) {
                                 },
                             ],
                         },
-                        {
-                            type: 1, // ActionRow (for the banner URL input)
-                            components: [
-                                {
-                                    type: 4, // TextInput
-                                    custom_id: 'banner_url',
-                                    label: 'Banner Image URL (optional)',
-                                    style: 1, // Short
-                                    required: false,
-                                    placeholder: 'https://i.imgur.com/example.png',
-                                },
-                            ],
-                        },
                     ],
                 },
             },
@@ -131,12 +119,8 @@ async function handlePriorityModal(interaction, client) {
 
     // --- Parse standard text input (still in an ActionRow, discord.js handles it) ---
     let durationRaw = '';
-    let bannerUrl = '';
     try {
         durationRaw = interaction.fields.getTextInputValue('duration_seconds').trim();
-    } catch (_) {}
-    try {
-        bannerUrl = interaction.fields.getTextInputValue('banner_url').trim();
     } catch (_) {}
 
     // fallback: look in rawData components for ActionRow text inputs
@@ -146,9 +130,6 @@ async function handlePriorityModal(interaction, client) {
                 for (const sub of comp.components ?? []) {
                     if (sub.custom_id === 'duration_seconds' && !durationRaw) {
                         durationRaw = sub.value ?? '';
-                    }
-                    if (sub.custom_id === 'banner_url' && !bannerUrl) {
-                        bannerUrl = sub.value ?? '';
                     }
                 }
             }
@@ -190,10 +171,6 @@ async function handlePriorityModal(interaction, client) {
     await thread.members.add(interaction.user.id).catch(() => {});
 
     // --- Build the thread embed ---
-    const isValidUrl = (url) => {
-        try { return Boolean(new URL(url)); } catch (_) { return false; }
-    };
-
     const embed = new EmbedBuilder()
         .setTitle(`🚨 Priority Request — ${priorityLabel}`)
         .setColor(0xFF0000)
@@ -206,11 +183,8 @@ async function handlePriorityModal(interaction, client) {
                 value: validDuration ? `${durationSecs} seconds` : `⚠️ Invalid format provided: \`${durationRaw}\``,
             }
         )
+        .setImage(PRIORITY_BANNER_URL)
         .setTimestamp();
-
-    if (bannerUrl && isValidUrl(bannerUrl)) {
-        embed.setImage(bannerUrl);
-    }
 
     const approveBtn = new ButtonBuilder()
         .setCustomId(`priority_approve:${interaction.user.id}:${validDuration ? durationSecs : 0}`)
