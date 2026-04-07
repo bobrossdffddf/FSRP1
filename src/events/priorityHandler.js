@@ -9,7 +9,7 @@ const {
 const { runCommand, getPlayers, getPlayerName } = require('../api/erlc');
 
 const PRIORITY_ROLE_ID = '1487127238003396645';
-const PRIORITY_BANNER_URL = 'https://i.postimg.cc/59HmqpCR/INFormation.png'; // replace with your banner URL
+const PRIORITY_BANNER_URL = 'https://i.postimg.cc/Bvh1B3Q5/INFormation-19.png'; // replace with your banner URL
 
 const PRIORITY_LABELS = {
     evading: 'Evading LEO (Need 2+ players)',
