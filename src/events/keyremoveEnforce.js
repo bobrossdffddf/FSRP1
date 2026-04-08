@@ -1,32 +1,36 @@
 const { Events } = require('discord.js');
 
-const KEYREMOVE_ROLE_ID = '1489693608448622892';
 const NOTIFY_CHANNEL_ID = '1489715677827825774';
 
 module.exports = {
     name: Events.GuildMemberUpdate,
     async execute(oldMember, newMember, client) {
-        // Only fire if they GAINED the blocked role
-        if (oldMember.roles.cache.has(KEYREMOVE_ROLE_ID)) return;
-        if (!newMember.roles.cache.has(KEYREMOVE_ROLE_ID)) return;
+        // Find any roles the member just gained
+        const gained = newMember.roles.cache.filter(r => !oldMember.roles.cache.has(r.id));
+        if (gained.size === 0) return;
 
         const blocked = client.settings.get('keyremove_blocked') || [];
-        if (!blocked.includes(newMember.id)) return;
+        if (blocked.length === 0) return;
 
-        // They're on the block list and just got the role — strip it immediately
-        try {
-            await newMember.roles.remove(KEYREMOVE_ROLE_ID, 'Key-Remove enforcement — blocked by owner');
-            console.log(`[KeyRemove] Auto-stripped role from ${newMember.user.username} (${newMember.id})`);
+        for (const [roleId] of gained) {
+            const entry = blocked.find(e => e.roleId === roleId && e.userId === newMember.id);
+            if (!entry) continue;
 
-            const channel = newMember.guild.channels.cache.get(NOTIFY_CHANNEL_ID);
-            if (channel) {
-                const msg = await channel.send(
-                    `<@${newMember.id}> attempted to regain blocked role — stripped automatically.`
-                );
-                setTimeout(() => msg.delete().catch(() => {}), 8000);
+            // This user is blocked from having this role — strip it immediately
+            try {
+                await newMember.roles.remove(roleId, 'Key-Remove enforcement — blocked');
+                console.log(`[KeyRemove] Auto-stripped role ${roleId} from ${newMember.user.username} (${newMember.id})`);
+
+                const channel = newMember.guild.channels.cache.get(NOTIFY_CHANNEL_ID);
+                if (channel) {
+                    const msg = await channel.send(
+                        `<@${newMember.id}> attempted to regain <@&${roleId}> — stripped automatically.`
+                    );
+                    setTimeout(() => msg.delete().catch(() => {}), 8000);
+                }
+            } catch (e) {
+                console.error(`[KeyRemove] Failed to auto-strip role ${roleId} from ${newMember.id}:`, e.message);
             }
-        } catch (e) {
-            console.error(`[KeyRemove] Failed to auto-strip role from ${newMember.id}:`, e.message);
         }
     },
 };

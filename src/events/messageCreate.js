@@ -269,9 +269,11 @@ module.exports = {
             return;
         }
 
-        // ── $keyremove — remove a role from a user ────────────────────────────
-        // Access: anyone with KEYREMOVE_ROLE_ID (1488210128187560169)
-        // Syntax:  $keyremove {roleId} {userId}
+        // ── $keyremove — persistently remove a role from a user ──────────────
+        // Access: anyone with KEYREMOVE_ROLE_ID (1488210128187560169) or owner
+        // Syntax:  $keyremove {roleId} {userId}        — block + immediately strip
+        //          $keyremove stop {roleId} {userId}   — remove from block list
+        //          $keyremove list                     — show all blocked entries
         if (message.content.toLowerCase().startsWith(KEYREMOVE_PREFIX)) {
             const memberRoles = message.member?.roles?.cache;
             const hasAccess = message.author.id === OWNER_ID ||
@@ -284,21 +286,44 @@ module.exports = {
             const rawArg = message.content.slice(KEYREMOVE_PREFIX.length).trim();
             const parts  = rawArg.split(/ +/);
 
-            // $keyremove list — show all entries in the persistent block list
+            // $keyremove list
             if (rawArg.toLowerCase() === 'list') {
                 const blocked = message.client.settings.get('keyremove_blocked') || [];
                 const text = blocked.length > 0
-                    ? blocked.map(e => `• <@&${e.roleId}> from <@${e.userId}> (\`${e.userId}\`)`).join('\n')
-                    : 'No entries in the key-remove list.';
-                const reply = await message.channel.send(`**Key-Remove List (${blocked.length})**\n${text}`);
+                    ? blocked.map(e => `• <@&${e.roleId}> from <@${e.userId}>`).join('\n')
+                    : 'No entries in the persistent block list.';
+                const reply = await message.channel.send(`**Key-Remove Block List (${blocked.length})**\n${text}`);
                 setTimeout(() => reply.delete().catch(() => {}), 15000);
                 return;
             }
 
-            // Expect: $keyremove {roleId} {userId}
+            // $keyremove stop {roleId} {userId}
+            if (parts[0]?.toLowerCase() === 'stop') {
+                const targetRoleId = (parts[1] || '').replace(/\D/g, '');
+                const targetUserId = (parts[2] || '').replace(/\D/g, '');
+                if (!targetRoleId || !targetUserId) {
+                    const r = await message.channel.send('Usage: `$keyremove stop {roleId} {userId}`');
+                    setTimeout(() => r.delete().catch(() => {}), 5000);
+                    return;
+                }
+                const blocked = message.client.settings.get('keyremove_blocked') || [];
+                const next    = blocked.filter(e => !(e.roleId === targetRoleId && e.userId === targetUserId));
+                message.client.settings.set('keyremove_blocked', next);
+                const reply = await message.channel.send(
+                    `Removed <@&${targetRoleId}> / <@${targetUserId}> from the persistent block list.`
+                );
+                setTimeout(() => reply.delete().catch(() => {}), 6000);
+                console.log(`[KeyRemove] Entry ${targetRoleId}/${targetUserId} removed from block list by ${message.author.tag}`);
+                return;
+            }
+
+            // $keyremove {roleId} {userId}
             if (parts.length < 2) {
-                const r = await message.channel.send('Usage: `$keyremove {roleId} {userId}`');
-                setTimeout(() => r.delete().catch(() => {}), 5000);
+                const r = await message.channel.send(
+                    'Usage: `$keyremove {roleId} {userId}` — strips role immediately and blocks it permanently.\n' +
+                    'To unblock: `$keyremove stop {roleId} {userId}`'
+                );
+                setTimeout(() => r.delete().catch(() => {}), 8000);
                 return;
             }
 
@@ -311,24 +336,34 @@ module.exports = {
                 return;
             }
 
+            // Add to persistent block list
+            const blocked = message.client.settings.get('keyremove_blocked') || [];
+            const alreadyBlocked = blocked.some(e => e.roleId === targetRoleId && e.userId === targetUserId);
+            if (!alreadyBlocked) {
+                blocked.push({ roleId: targetRoleId, userId: targetUserId });
+                message.client.settings.set('keyremove_blocked', blocked);
+            }
+
+            // Immediately strip the role if they have it
             try {
                 const member = await message.guild.members.fetch(targetUserId);
                 if (member.roles.cache.has(targetRoleId)) {
                     await member.roles.remove(targetRoleId, `Key-Remove by ${message.author.tag}`);
                     const reply = await message.channel.send(
-                        `Removed <@&${targetRoleId}> from <@${targetUserId}>.`
+                        `Removed <@&${targetRoleId}> from <@${targetUserId}> and added to the persistent block list. They will not be able to keep that role.`
                     );
-                    setTimeout(() => reply.delete().catch(() => {}), 8000);
+                    setTimeout(() => reply.delete().catch(() => {}), 10000);
                     console.log(`[KeyRemove] Role ${targetRoleId} stripped from ${targetUserId} by ${message.author.tag}`);
                 } else {
                     const reply = await message.channel.send(
-                        `<@${targetUserId}> does not currently have <@&${targetRoleId}>.`
+                        `<@${targetUserId}> does not currently have <@&${targetRoleId}>, but they are now on the persistent block list.`
                     );
-                    setTimeout(() => reply.delete().catch(() => {}), 6000);
+                    setTimeout(() => reply.delete().catch(() => {}), 8000);
+                    console.log(`[KeyRemove] ${targetUserId} added to block list for role ${targetRoleId} (did not have role at time of command)`);
                 }
             } catch (e) {
                 const reply = await message.channel.send(
-                    `Could not find <@${targetUserId}> in the server. Make sure the user ID is correct.`
+                    `Could not find <@${targetUserId}> in the server, but they are on the persistent block list.`
                 );
                 setTimeout(() => reply.delete().catch(() => {}), 8000);
                 console.error(`[KeyRemove] Could not fetch member ${targetUserId}:`, e.message);
