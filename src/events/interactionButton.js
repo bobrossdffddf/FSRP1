@@ -16,6 +16,7 @@ const {
     handlePriorityApprove,
     handlePriorityDeny,
 } = require('./priorityHandler');
+const { activeFlags, consecutiveBadScans } = require('./shiftMonitor');
 
 const isHardcodeComponent = interaction => {
     if (!interaction.customId) return false;
@@ -103,6 +104,52 @@ module.exports = {
 
                     return interaction.showModal(modal);
                 }
+            }
+
+            // ── Shift Contribution Flag — Resolve ────────────────────────────
+            if (interaction.customId.startsWith('scflag_resolve:')) {
+                const HR_ROLE_ID   = '1487127238058180810';
+                const isHR         = interaction.member?.roles?.cache?.has(HR_ROLE_ID);
+                const isAdmin      = interaction.member?.permissions?.has(0x8n);
+
+                if (!isHR && !isAdmin) {
+                    return interaction.reply({
+                        content: 'Only HR members can resolve Shift Contribution Flags.',
+                        flags: 64,
+                    });
+                }
+
+                const modName  = interaction.customId.slice('scflag_resolve:'.length);
+                const flagData = activeFlags.get(modName);
+
+                // Reset consecutive scan count so they get a clean slate
+                consecutiveBadScans.delete(modName);
+                activeFlags.delete(modName);
+
+                // Edit the original flag message to mark it resolved
+                try {
+                    const targetMsg = interaction.message;
+                    const oldEmbed  = targetMsg.embeds[0];
+
+                    const resolvedEmbed = EmbedBuilder.from(oldEmbed)
+                        .setColor('#5865F2')
+                        .setFooter({ text: `Resolved by ${interaction.user.username}` })
+                        .setTimestamp();
+
+                    await interaction.update({
+                        embeds:     [resolvedEmbed],
+                        components: [],
+                    });
+                } catch (e) {
+                    console.warn('[ShiftMonitor] Could not update flag message on resolve:', e.message);
+                    await interaction.reply({
+                        content: `Flag for **${modName}** has been resolved by ${interaction.user}.`,
+                        flags: 64,
+                    });
+                }
+
+                console.log(`[ShiftMonitor] Flag resolved for ${modName} by ${interaction.user.tag}`);
+                return;
             }
 
             // Staff request respond button

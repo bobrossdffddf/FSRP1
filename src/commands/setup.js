@@ -50,6 +50,26 @@ module.exports = {
             option
                 .setName('shift_channel')
                 .setDescription('Channel where shift warnings and shoutouts are posted.')
+                .setRequired(false))
+        .addChannelOption(option =>
+            option
+                .setName('flag_channel')
+                .setDescription('Channel where Shift Contribution Flags are sent. Defaults to shift channel if not set.')
+                .setRequired(false))
+        .addRoleOption(option =>
+            option
+                .setName('flag_role_1')
+                .setDescription('First management role to ping when a Shift Contribution Flag is issued.')
+                .setRequired(false))
+        .addRoleOption(option =>
+            option
+                .setName('flag_role_2')
+                .setDescription('Second management role to ping (e.g. Management Team).')
+                .setRequired(false))
+        .addRoleOption(option =>
+            option
+                .setName('flag_role_3')
+                .setDescription('Third management role to ping (e.g. Ownership Team).')
                 .setRequired(false)),
 
     async execute(interaction, client) {
@@ -65,13 +85,18 @@ module.exports = {
         const logsChannel = interaction.options.getChannel('logs_channel');
         const priorityChannel = interaction.options.getChannel('priority_channel');
 
-        const infractionChannel = interaction.options.getChannel('infraction_channel');
-        const promotionChannel = interaction.options.getChannel('promotion_channel');
+        const infractionChannel   = interaction.options.getChannel('infraction_channel');
+        const promotionChannel    = interaction.options.getChannel('promotion_channel');
         const staffRequestChannel = interaction.options.getChannel('staffrequest_channel');
-        const shiftChannel = interaction.options.getChannel('shift_channel');
+        const shiftChannel        = interaction.options.getChannel('shift_channel');
+        const flagChannel         = interaction.options.getChannel('flag_channel');
+        const flagRole1           = interaction.options.getRole('flag_role_1');
+        const flagRole2           = interaction.options.getRole('flag_role_2');
+        const flagRole3           = interaction.options.getRole('flag_role_3');
 
         const nothingProvided = !ssuChannel && !pingRole && !logsChannel && !priorityChannel
-            && !infractionChannel && !promotionChannel && !staffRequestChannel && !shiftChannel;
+            && !infractionChannel && !promotionChannel && !staffRequestChannel && !shiftChannel
+            && !flagChannel && !flagRole1 && !flagRole2 && !flagRole3;
 
         if (nothingProvided) {
             const existing = client.settings.get(interaction.guild.id) || {};
@@ -87,7 +112,15 @@ module.exports = {
                     { name: '⚠️ Infraction Channel', value: existing.infractionChannelId ? `<#${existing.infractionChannelId}>` : 'Not configured', inline: true },
                     { name: '🎉 Promotion Channel', value: existing.promotionChannelId ? `<#${existing.promotionChannelId}>` : 'Not configured', inline: true },
                     { name: '🆘 Staff Request Channel', value: existing.staffRequestChannelId ? `<#${existing.staffRequestChannelId}>` : 'Not configured', inline: true },
-                    { name: '📊 Shift Channel', value: existing.shiftChannelId ? `<#${existing.shiftChannelId}>` : 'Not configured', inline: true },
+                    { name: '📊 Shift Channel',    value: existing.shiftChannelId ? `<#${existing.shiftChannelId}>` : 'Not configured', inline: true },
+                    { name: '🚩 Flag Channel',    value: existing.flagChannelId  ? `<#${existing.flagChannelId}>`  : 'Not configured (uses shift channel)', inline: true },
+                    {
+                        name: '📣 Flag Ping Roles',
+                        value: (existing.flagRoleIds?.length)
+                            ? existing.flagRoleIds.map(id => `<@&${id}>`).join(' ')
+                            : 'Not configured',
+                        inline: false,
+                    },
                 )
                 .setFooter({ text: 'Run /setup with options to update any of these settings.' })
                 .setTimestamp();
@@ -105,7 +138,17 @@ module.exports = {
         if (infractionChannel) updates.infractionChannelId = infractionChannel.id;
         if (promotionChannel) updates.promotionChannelId = promotionChannel.id;
         if (staffRequestChannel) updates.staffRequestChannelId = staffRequestChannel.id;
-        if (shiftChannel) updates.shiftChannelId = shiftChannel.id;
+        if (shiftChannel)  updates.shiftChannelId = shiftChannel.id;
+        if (flagChannel)   updates.flagChannelId  = flagChannel.id;
+
+        // Merge new flag role IDs with existing ones (deduplicated, up to 3)
+        if (flagRole1 || flagRole2 || flagRole3) {
+            const newIds = [flagRole1, flagRole2, flagRole3]
+                .filter(Boolean)
+                .map(r => r.id);
+            const merged = [...new Set([...(existing.flagRoleIds || []), ...newIds])].slice(0, 3);
+            updates.flagRoleIds = merged;
+        }
 
         if (priorityChannel) {
             updates.priorityChannelId = priorityChannel.id;
@@ -139,7 +182,15 @@ module.exports = {
                 { name: '⚠️ Infraction Channel', value: saved.infractionChannelId ? `<#${saved.infractionChannelId}>` : 'Not configured', inline: true },
                 { name: '🎉 Promotion Channel', value: saved.promotionChannelId ? `<#${saved.promotionChannelId}>` : 'Not configured', inline: true },
                 { name: '🆘 Staff Request Channel', value: saved.staffRequestChannelId ? `<#${saved.staffRequestChannelId}>` : 'Not configured', inline: true },
-                { name: '📊 Shift Channel', value: saved.shiftChannelId ? `<#${saved.shiftChannelId}>` : 'Not configured', inline: true },
+                { name: '📊 Shift Channel',  value: saved.shiftChannelId ? `<#${saved.shiftChannelId}>` : 'Not configured', inline: true },
+                { name: '🚩 Flag Channel',  value: saved.flagChannelId  ? `<#${saved.flagChannelId}>`  : 'Not configured (uses shift channel)', inline: true },
+                {
+                    name: '📣 Flag Ping Roles',
+                    value: (saved.flagRoleIds?.length)
+                        ? saved.flagRoleIds.map(id => `<@&${id}>`).join(' ')
+                        : 'Not configured',
+                    inline: false,
+                },
             )
             .setFooter({ text: `Updated by ${interaction.user.username}` })
             .setTimestamp();
