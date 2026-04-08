@@ -1,12 +1,12 @@
 const { Events, PermissionFlagsBits, ActivityType } = require('discord.js');
-const { getPlayers, getServerInfo, pmPlayer, jailPlayer, getPlayerName, getPlayerId } = require('../api/erlc');
+const { getPlayers, getServerInfo, runCommand, getPlayerName, getPlayerId } = require('../api/erlc');
 
 const vcWarnings = new Map();
 const commsWarnings = new Map();
 
 let msgFlip = false;
 let lastCacheRefresh = 0;
-const CACHE_REFRESH_INTERVAL_MS = 5 * 60 * 1000; // refresh member/role cache every 5 minutes
+const CACHE_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 
 const IN_GAME_ROLE_ID = '1489733107006312558';
 const STAFF_BYPASS_ROLE_ID = '970917178142498824';
@@ -17,7 +17,6 @@ module.exports = {
     async execute(client) {
         console.log(`Polling Manager: Ready. Starting loops...`);
 
-        // Verify the in-game role exists in the guild at startup
         const guildId = process.env.MAIN_GUILD_ID;
         if (guildId) {
             const guild = client.guilds.cache.get(guildId);
@@ -60,8 +59,6 @@ function normalizeString(str) {
     return str.toLowerCase().replace(/\s+/g, ' ').trim();
 }
 
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
 function endPunc() {
     return msgFlip ? '!' : '.';
 }
@@ -78,6 +75,24 @@ function findDiscordMember(guild, robloxUsername) {
     });
 }
 
+// Send a batched :pm command to multiple players with the same message
+async function batchPm(players, message) {
+    if (players.length === 0) return;
+    const names = players.map(p => getPlayerName(p)).join(',');
+    const cmd = `:pm ${names} ${message}`;
+    console.log(`[Batch] PM → ${names} | "${message}"`);
+    await runCommand(cmd);
+}
+
+// Send a batched :jail command to multiple players
+async function batchJail(players, reason) {
+    if (players.length === 0) return;
+    const names = players.map(p => getPlayerName(p)).join(',');
+    const cmd = reason ? `:jail ${names} ${reason}` : `:jail ${names}`;
+    console.log(`[Batch] JAIL → ${names}${reason ? ` | "${reason}"` : ''}`);
+    await runCommand(cmd);
+}
+
 async function runChecks(client) {
     const guildId = process.env.MAIN_GUILD_ID;
     if (!guildId) {
@@ -91,7 +106,6 @@ async function runChecks(client) {
         return;
     }
 
-    // Refresh member and role caches every 5 minutes to avoid rate limits
     const now = Date.now();
     if (now - lastCacheRefresh > CACHE_REFRESH_INTERVAL_MS) {
         try {
@@ -104,7 +118,6 @@ async function runChecks(client) {
         }
     }
 
-    // Bail early if the in-game role still doesn't exist after the refresh
     if (!guild.roles.cache.has(IN_GAME_ROLE_ID)) {
         console.error(`[Checks] In-Game role ${IN_GAME_ROLE_ID} not found in guild — skipping role operations this cycle.`);
         return;
@@ -123,6 +136,12 @@ async function runChecks(client) {
     const hardcodeBypasses = client.settings.get(guild.id, 'hardcodeBypasses') || [];
 
     console.log(`[Checks] Active Players: ${inGamePlayers.length} | Guild Cache: ${guild.members.cache.size}`);
+
+    // Buckets for batched ERLC commands
+    const vcWarnPlayers   = [];
+    const vcJailPlayers   = [];
+    const commsWarnPlayers = [];
+    const commsJailPlayers = [];
 
     for (const player of inGamePlayers) {
         const robloxUsername = getPlayerName(player.Player);
@@ -153,33 +172,53 @@ async function runChecks(client) {
             if (!member.voice.channelId) {
                 const warnings = vcWarnings.get(robloxUsername) || 0;
                 if (warnings >= 5) {
-                    console.log(`[VC] Jailing ${robloxUsername} for not being in VC`);
-                    await jailPlayer(player.Player, "Not in a voice channel" + endPunc());
-                    await sleep(1500);
+                    console.log(`[VC] Queuing jail for ${robloxUsername} (${warnings + 1} warnings exceeded)`);
+                    vcJailPlayers.push(player.Player);
                     vcWarnings.delete(robloxUsername);
                 } else {
-                    console.log(`[VC] Warning ${robloxUsername} (${warnings + 1}/5)`);
-                    await pmPlayer(player.Player, "You are in our comms but not in a Voice Channel" + endPunc() + " Please join a VC to continue RPing" + endPunc());
-                    await sleep(1500);
+                    console.log(`[VC] Queuing warning for ${robloxUsername} (${warnings + 1}/5)`);
+                    vcWarnPlayers.push(player.Player);
                     vcWarnings.set(robloxUsername, warnings + 1);
                 }
             } else {
-                vcWarnings.delete(robloxUsername);
+                if (vcWarnings.has(robloxUsername)) {
+                    console.log(`[VC] ${robloxUsername} joined VC — warning cleared`);
+                    vcWarnings.delete(robloxUsername);
+                }
             }
         } else {
             const warnings = commsWarnings.get(robloxUsername) || 0;
             if (warnings >= 6) {
-                console.log(`[Comms] Jailing ${robloxUsername} for not being in comms`);
-                await jailPlayer(player.Player, "Not in the comms server" + endPunc());
-                await sleep(1500);
+                console.log(`[Comms] Queuing jail for ${robloxUsername} (${warnings + 1} warnings exceeded)`);
+                commsJailPlayers.push(player.Player);
                 commsWarnings.delete(robloxUsername);
             } else {
-                console.log(`[Comms] Warning ${robloxUsername} (${warnings + 1}/6)`);
-                await pmPlayer(player.Player, "You are not in our comms server" + endPunc() + " Please join or you will be jailed" + endPunc());
-                await sleep(1500);
+                console.log(`[Comms] Queuing warning for ${robloxUsername} (${warnings + 1}/6) — not in comms`);
+                commsWarnPlayers.push(player.Player);
                 commsWarnings.set(robloxUsername, warnings + 1);
             }
         }
+    }
+
+    // Fire all batched commands (one per action type, no per-player sleep needed)
+    const punc = endPunc();
+    if (vcWarnPlayers.length > 0) {
+        await batchPm(vcWarnPlayers, `You are in our comms but not in a Voice Channel${punc} Please join a VC to continue RPing${punc}`);
+    }
+    if (vcJailPlayers.length > 0) {
+        await batchJail(vcJailPlayers, `Not in a voice channel${punc}`);
+    }
+    if (commsWarnPlayers.length > 0) {
+        await batchPm(commsWarnPlayers, `You are not in our comms server${punc} Please join or you will be jailed${punc}`);
+    }
+    if (commsJailPlayers.length > 0) {
+        await batchJail(commsJailPlayers, `Not in the comms server${punc}`);
+    }
+
+    // Summary log for the cycle
+    const actionCount = vcWarnPlayers.length + vcJailPlayers.length + commsWarnPlayers.length + commsJailPlayers.length;
+    if (actionCount > 0) {
+        console.log(`[Checks] Cycle complete — VC warns: ${vcWarnPlayers.length}, VC jails: ${vcJailPlayers.length}, Comms warns: ${commsWarnPlayers.length}, Comms jails: ${commsJailPlayers.length}`);
     }
 
     const inGameUsernames = inGamePlayers.map(p => normalizeString(getPlayerName(p.Player)));

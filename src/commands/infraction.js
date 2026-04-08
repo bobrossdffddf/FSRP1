@@ -91,10 +91,10 @@ module.exports = {
             .setColor(color)
             .setThumbnail(LOGO_URL)
             .addFields(
-                { name: '👥 Staff Member', value: `${member}`, inline: false },
-                { name: '⚠️ Punishment', value: punishment, inline: false },
+                { name: '<:staff:1491568422205526118> Staff Member', value: `${member}`, inline: false },
+                { name: '<:warning:1489218432850464768> Punishment', value: `\`${punishment}\``, inline: false },
                 { name: '\u200b', value: '\u200b', inline: false },
-                { name: '🔒 Reason', value: reason, inline: false },
+                { name: '<:pin:1491123495810367651> Reason', value: `\`\`\`${reason}\`\`\``, inline: false },
                 {
                     name: '\u200b',
                     value: `This punishment is not subject to change. <@&${HR_ROLE_ID}> will read your concern in a ticket.`,
@@ -111,6 +111,19 @@ module.exports = {
         try {
             await targetChannel.send({ content: `${member}`, embeds: [embed] });
             await interaction.editReply({ content: `Infraction issued to ${member.user.username} — **${infractionId}**` });
+
+            // Persist infraction record per user for /my-infractions
+            const userInfractions = client.settings.get(`user_infractions_${member.id}`) || [];
+            userInfractions.push({
+                id: infractionId,
+                punishment,
+                reason,
+                issuedBy: interaction.user.id,
+                timestamp: Math.floor(Date.now() / 1000),
+                active: true,
+            });
+            client.settings.set(`user_infractions_${member.id}`, userInfractions);
+            console.log(`[Infraction] Stored ${infractionId} for user ${member.id} (${member.user.username})`);
         } catch (e) {
             console.error('[Infraction] Failed to send:', e.message);
             await interaction.editReply({ content: 'Failed to send the infraction. Check channel permissions.' });

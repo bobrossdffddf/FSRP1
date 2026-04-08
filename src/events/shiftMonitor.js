@@ -1,6 +1,6 @@
 const { Events, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { getModCalls, getPlayerName } = require('../api/erlc');
-const { getMemberByDiscordId, getShiftsForMember } = require('../api/melonly');
+const { getMemberByDiscordId, getShiftsForMember, getServerShifts } = require('../api/melonly');
 
 // ── Tunables ──────────────────────────────────────────────────────────────────
 const POLL_INTERVAL_MS   = 60_000;       // poll ERLC every 60s
@@ -26,6 +26,9 @@ const lastWarnTime        = new Map(); // modName → Date.now()
 const consecutiveBadScans = new Map(); // modName → number
 const activeFlags         = new Map(); // modName → { messageId, channelId }
 
+// ── Shift tracking state ──────────────────────────────────────────────────────
+const knownActiveShiftIds = new Set(); // shift IDs currently on shift
+
 // ── Exports ───────────────────────────────────────────────────────────────────
 function resetSessionData() {
     seenHandledCallKeys.clear();
@@ -36,6 +39,7 @@ function resetSessionData() {
     lastWarnTime.clear();
     consecutiveBadScans.clear();
     activeFlags.clear();
+    knownActiveShiftIds.clear();
     console.log('[ShiftMonitor] Session data reset.');
 }
 
@@ -72,6 +76,46 @@ function findDiscordMember(guild, robloxUsername) {
         const username   = normalizeString(m.user.username);
         return nick.includes(normalized) || globalName.includes(normalized) || username.includes(normalized);
     });
+}
+
+// ── Melonly shift tracking ────────────────────────────────────────────────────
+async function pollShiftChanges() {
+    try {
+        const resp = await getServerShifts(1, 50);
+        const shifts = resp?.data || [];
+
+        const currentActiveIds = new Set();
+
+        for (const shift of shifts) {
+            if (shift.endedAt && shift.endedAt !== 0) continue; // already ended
+
+            const shiftId   = shift.id || shift._id;
+            const staffName = shift.member?.username || shift.member?.displayName || shift.memberId || 'Unknown';
+            const startedAt = shift.createdAt ? new Date(shift.createdAt * 1000).toLocaleTimeString() : 'unknown time';
+
+            if (shiftId) currentActiveIds.add(shiftId);
+
+            // Newly detected active shift → log "on shift"
+            if (shiftId && !knownActiveShiftIds.has(shiftId)) {
+                knownActiveShiftIds.add(shiftId);
+                console.log(`[ShiftMonitor] 🟢 ON SHIFT  — ${staffName} started a shift at ${startedAt} (ID: ${shiftId})`);
+            }
+        }
+
+        // Detect ended shifts (were active last poll, no longer active)
+        for (const id of knownActiveShiftIds) {
+            if (!currentActiveIds.has(id)) {
+                knownActiveShiftIds.delete(id);
+                console.log(`[ShiftMonitor] 🔴 OFF SHIFT — shift ${id} ended`);
+            }
+        }
+
+        if (currentActiveIds.size > 0) {
+            console.log(`[ShiftMonitor] Active shifts: ${currentActiveIds.size}`);
+        }
+    } catch (e) {
+        console.warn('[ShiftMonitor] pollShiftChanges error:', e.message);
+    }
 }
 
 // ── ERLC mod call polling ─────────────────────────────────────────────────────
@@ -360,6 +404,7 @@ module.exports = {
 
                 if (settings.sessionActive) {
                     await pollModCalls();
+                    await pollShiftChanges();
 
                     const now = Date.now();
                     if (now - lastEvalTime >= EVAL_INTERVAL_MS) {
