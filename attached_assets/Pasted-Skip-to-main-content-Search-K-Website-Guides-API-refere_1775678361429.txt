@@ -1,0 +1,182 @@
+Skip to main content
+
+Search...
+⌘K
+Website
+
+Guides
+API reference
+Website
+Community
+OpenAPI Documentation
+Getting started
+Melonly API
+Quickstart
+Authentication
+Rate Limits
+Security
+Official Libraries
+
+On this page
+Token Security
+Storage Requirements
+Security Violations
+Token Lifecycle Management
+Network Security
+HTTPS Requirements
+IP Restrictions
+Application Security
+Input Validation
+Error Handling
+Audit and Compliance
+Request Logging
+Incident Response
+Suspected Token Compromise
+Security Contact
+Getting started
+Security
+API token security, best practices, and threat mitigation strategies
+
+Security is your responsibility. The Melonly API provides secure infrastructure, but proper token management and implementation practices are critical for maintaining system security.
+No Security Support: Security vulnerabilities, breaches, or compromised tokens are not supported. Implement proper security measures from the start.
+​
+Token Security
+API tokens provide full access to your server data and operations. Treat them as sensitive credentials.
+​
+Storage Requirements
+Environment Variables
+Secrets Management
+Configuration Services
+Recommended Approach
+# .env file
+MELONLY_API_TOKEN=your_token_here
+
+# Access in application
+const token = process.env.MELONLY_API_TOKEN;
+Never commit .env files to version control.
+​
+Security Violations
+Never:
+Commit tokens to version control (Git, SVN, etc.)
+Include tokens in client-side code or JavaScript bundles
+Share tokens in chat messages, emails, or documentation
+Log tokens in application logs or error messages
+Store tokens in browser local storage or cookies
+​
+Token Lifecycle Management
+Token Rotation
+
+Emergency Revocation
+
+​
+Network Security
+​
+HTTPS Requirements
+All API communication must use HTTPS. HTTP connections are rejected.
+// Correct - HTTPS enforced
+const response = await fetch('https://api.melonly.xyz/api/v1/server/info', {
+  headers: { 'Authorization': 'Bearer ' + token }
+});
+
+// Incorrect - Will fail
+const response = await fetch('http://api.melonly.xyz/api/v1/server/info', {
+  headers: { 'Authorization': 'Bearer ' + token }
+});
+​
+IP Restrictions
+Consider implementing IP allowlisting at your application level:
+
+Node.js Middleware
+
+Flask
+const allowedIPs = ['192.168.1.100', '10.0.0.50'];
+
+app.use('/api/*', (req, res, next) => {
+  const clientIP = req.ip || req.connection.remoteAddress;
+  
+  if (!allowedIPs.includes(clientIP)) {
+    return res.status(403).json({ error: 'IP not allowed' });
+  }
+  
+  next();
+});
+​
+Application Security
+​
+Input Validation
+Always validate data before sending to the API:
+const validateInput = (data) => {
+  // Sanitize user input
+  const sanitized = {
+    username: data.username?.replace(/[<>]/g, ''),
+    reason: data.reason?.substring(0, 500),
+    // ... other fields
+  };
+  
+  // Validate required fields
+  if (!sanitized.username || !sanitized.reason) {
+    throw new Error('Missing required fields');
+  }
+  
+  return sanitized;
+};
+
+// Use validated data in API calls
+const validData = validateInput(userInput);
+const response = await melonlyAPI.createLog(validData);
+​
+Error Handling
+Implement secure error handling that doesn’t expose sensitive information:
+
+Secure Error Handling
+
+Python Error Handling
+const handleAPIError = (error, res) => {
+  // Log full error internally
+  console.error('API Error:', error);
+  
+  // Return sanitized error to client
+  if (error.status === 401) {
+    return res.status(401).json({ error: 'Authentication failed' });
+  }
+  
+  if (error.status === 403) {
+    return res.status(403).json({ error: 'Access denied' });
+  }
+  
+  // Generic error for everything else
+  return res.status(500).json({ error: 'Internal server error' });
+};
+​
+Audit and Compliance
+​
+Request Logging
+Log API requests for security monitoring (without exposing tokens):
+const logAPIRequest = (method, url, statusCode, duration) => {
+  console.log(JSON.stringify({
+    timestamp: new Date().toISOString(),
+    method,
+    url: url.replace(/Bearer\s+[^\s]+/, 'Bearer [REDACTED]'),
+    statusCode,
+    duration,
+    userAgent: req.headers['user-agent']
+  }));
+};
+​
+Incident Response
+​
+Suspected Token Compromise
+Immediate containment - Revoke token via dashboard
+Damage assessment - Review audit logs for unauthorized actions
+System remediation - Update affected applications with new tokens
+Root cause analysis - Identify and fix the compromise vector
+Prevention measures - Implement additional security controls
+​
+Security Contact
+For security vulnerabilities in the Melonly API itself (not implementation issues), contact: admin@melonly.xyz
+Scope Limitation: Security support is limited to API infrastructure vulnerabilities only. Implementation security, token management, and application-level security issues are not supported.
+Rate Limits
+Official Libraries
+Powered by
+This documentation is built and hosted on Mintlify, a developer documentation platform
+Security - Melonly OpenAPI

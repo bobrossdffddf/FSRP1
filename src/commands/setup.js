@@ -30,6 +30,26 @@ module.exports = {
             option
                 .setName('priority_channel')
                 .setDescription('Channel to post the "Request a Priority" button.')
+                .setRequired(false))
+        .addChannelOption(option =>
+            option
+                .setName('infraction_channel')
+                .setDescription('Channel where staff infraction embeds are posted.')
+                .setRequired(false))
+        .addChannelOption(option =>
+            option
+                .setName('promotion_channel')
+                .setDescription('Channel where staff promotion embeds are posted.')
+                .setRequired(false))
+        .addChannelOption(option =>
+            option
+                .setName('staffrequest_channel')
+                .setDescription('Channel where game assistance / staff requests are posted.')
+                .setRequired(false))
+        .addChannelOption(option =>
+            option
+                .setName('shift_channel')
+                .setDescription('Channel where shift warnings and shoutouts are posted.')
                 .setRequired(false)),
 
     async execute(interaction, client) {
@@ -45,7 +65,13 @@ module.exports = {
         const logsChannel = interaction.options.getChannel('logs_channel');
         const priorityChannel = interaction.options.getChannel('priority_channel');
 
-        const nothingProvided = !ssuChannel && !pingRole && !logsChannel && !priorityChannel;
+        const infractionChannel = interaction.options.getChannel('infraction_channel');
+        const promotionChannel = interaction.options.getChannel('promotion_channel');
+        const staffRequestChannel = interaction.options.getChannel('staffrequest_channel');
+        const shiftChannel = interaction.options.getChannel('shift_channel');
+
+        const nothingProvided = !ssuChannel && !pingRole && !logsChannel && !priorityChannel
+            && !infractionChannel && !promotionChannel && !staffRequestChannel && !shiftChannel;
 
         if (nothingProvided) {
             const existing = client.settings.get(interaction.guild.id) || {};
@@ -57,7 +83,11 @@ module.exports = {
                     { name: '📢 SSU Channel', value: existing.ssuChannelId ? `<#${existing.ssuChannelId}>` : 'Not configured', inline: true },
                     { name: '🔔 Ping Role', value: existing.pingRoleId ? `<@&${existing.pingRoleId}>` : 'Not configured', inline: true },
                     { name: '📝 Logs Channel', value: existing.logsChannelId ? `<#${existing.logsChannelId}>` : 'Not configured', inline: true },
-                    { name: '🚨 Priority Channel', value: existing.priorityChannelId ? `<#${existing.priorityChannelId}>` : 'Not configured', inline: true }
+                    { name: '🚨 Priority Channel', value: existing.priorityChannelId ? `<#${existing.priorityChannelId}>` : 'Not configured', inline: true },
+                    { name: '⚠️ Infraction Channel', value: existing.infractionChannelId ? `<#${existing.infractionChannelId}>` : 'Not configured', inline: true },
+                    { name: '🎉 Promotion Channel', value: existing.promotionChannelId ? `<#${existing.promotionChannelId}>` : 'Not configured', inline: true },
+                    { name: '🆘 Staff Request Channel', value: existing.staffRequestChannelId ? `<#${existing.staffRequestChannelId}>` : 'Not configured', inline: true },
+                    { name: '📊 Shift Channel', value: existing.shiftChannelId ? `<#${existing.shiftChannelId}>` : 'Not configured', inline: true },
                 )
                 .setFooter({ text: 'Run /setup with options to update any of these settings.' })
                 .setTimestamp();
@@ -72,6 +102,10 @@ module.exports = {
         if (ssuChannel) updates.ssuChannelId = ssuChannel.id;
         if (pingRole) updates.pingRoleId = pingRole.id;
         if (logsChannel) updates.logsChannelId = logsChannel.id;
+        if (infractionChannel) updates.infractionChannelId = infractionChannel.id;
+        if (promotionChannel) updates.promotionChannelId = promotionChannel.id;
+        if (staffRequestChannel) updates.staffRequestChannelId = staffRequestChannel.id;
+        if (shiftChannel) updates.shiftChannelId = shiftChannel.id;
 
         if (priorityChannel) {
             updates.priorityChannelId = priorityChannel.id;
@@ -101,7 +135,11 @@ module.exports = {
                 { name: '📢 SSU Channel', value: saved.ssuChannelId ? `<#${saved.ssuChannelId}>` : 'Not configured', inline: true },
                 { name: '🔔 Ping Role', value: saved.pingRoleId ? `<@&${saved.pingRoleId}>` : 'Not configured', inline: true },
                 { name: '📝 Logs Channel', value: saved.logsChannelId ? `<#${saved.logsChannelId}>` : 'Not configured', inline: true },
-                { name: '🚨 Priority Channel', value: saved.priorityChannelId ? `<#${saved.priorityChannelId}>` : 'Not configured', inline: true }
+                { name: '🚨 Priority Channel', value: saved.priorityChannelId ? `<#${saved.priorityChannelId}>` : 'Not configured', inline: true },
+                { name: '⚠️ Infraction Channel', value: saved.infractionChannelId ? `<#${saved.infractionChannelId}>` : 'Not configured', inline: true },
+                { name: '🎉 Promotion Channel', value: saved.promotionChannelId ? `<#${saved.promotionChannelId}>` : 'Not configured', inline: true },
+                { name: '🆘 Staff Request Channel', value: saved.staffRequestChannelId ? `<#${saved.staffRequestChannelId}>` : 'Not configured', inline: true },
+                { name: '📊 Shift Channel', value: saved.shiftChannelId ? `<#${saved.shiftChannelId}>` : 'Not configured', inline: true },
             )
             .setFooter({ text: `Updated by ${interaction.user.username}` })
             .setTimestamp();

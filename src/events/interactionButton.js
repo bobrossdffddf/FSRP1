@@ -10,6 +10,7 @@ const {
 } = require('discord.js');
 
 const hardcodeCommand = require('../commands/hardcode');
+const staffRequestCommand = require('../commands/staffrequest');
 const {
     handlePriorityRequestButton,
     handlePriorityApprove,
@@ -102,6 +103,67 @@ module.exports = {
 
                     return interaction.showModal(modal);
                 }
+            }
+
+            // Staff request respond button
+            if (interaction.customId === 'staffrequest_respond') {
+                const reqData = staffRequestCommand.activeRequests.get(interaction.message.id);
+                if (!reqData) {
+                    return interaction.reply({ content: 'This staff request has expired.', flags: 64 });
+                }
+
+                const { respondees, playerCount, maxPlayers, joinUrl } = reqData;
+
+                if (respondees.has(interaction.user.id)) {
+                    respondees.delete(interaction.user.id);
+                } else {
+                    respondees.add(interaction.user.id);
+                }
+
+                const { buildRequestEmbed, buildRequestRow } = (() => {
+                    const { EmbedBuilder: EB, ActionRowBuilder: ARB, ButtonBuilder: BB, ButtonStyle: BS } = require('discord.js');
+                    const LOGO = 'https://i.postimg.cc/T1K1HQCs/FSR-logo-with-tropical-scene.webp';
+                    const FOOTER = 'https://i.postimg.cc/ZRqRj6bf/Untitled-design-(18).webp';
+
+                    const buildEmbed = () => {
+                        const respondeeList = respondees.size > 0
+                            ? [...respondees].map(id => `• <@${id}>`).join('\n')
+                            : '*No respondees yet.*';
+
+                        return new EB()
+                            .setTitle('Game Assistance')
+                            .setColor('#5865F2')
+                            .setThumbnail(LOGO)
+                            .setDescription(
+                                'We are in-need of in-game staff members to assist players with assistance, and to ensure that our server is maintained with a great roleplay experience.'
+                            )
+                            .addFields(
+                                { name: '\u200b', value: `Players In-game: **${playerCount}/${maxPlayers}**`, inline: false },
+                                { name: 'Respondees:', value: respondeeList, inline: false },
+                            )
+                            .setImage(FOOTER)
+                            .setTimestamp();
+                    };
+
+                    const buildRow = () => new ARB().addComponents(
+                        new BB()
+                            .setCustomId('staffrequest_respond')
+                            .setLabel('Respond')
+                            .setStyle(BS.Secondary),
+                        new BB()
+                            .setLabel('Join In-Game')
+                            .setStyle(BS.Link)
+                            .setURL(joinUrl || 'https://www.roblox.com/games/2534724415'),
+                    );
+
+                    return { buildRequestEmbed: buildEmbed, buildRequestRow: buildRow };
+                })();
+
+                await interaction.update({
+                    embeds: [buildRequestEmbed()],
+                    components: [buildRequestRow()],
+                });
+                return;
             }
 
             // Priority — request button

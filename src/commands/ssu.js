@@ -77,6 +77,21 @@ module.exports = {
             // Re-enable the priority request button now that the server is up
             await setPriorityButtonState(client, guildId, false);
 
+            // Mark session as active for shift monitoring
+            client.settings.set(guildId, {
+                ...client.settings.get(guildId),
+                sessionActive: true,
+                sessionStartTime: Date.now(),
+            });
+
+            // Reset any previous shift data
+            try {
+                const shiftMonitor = require('../events/shiftMonitor');
+                shiftMonitor.resetSessionData();
+            } catch (e) {
+                console.warn('[SSU] Could not reset shift monitor:', e.message);
+            }
+
             await safeReply('SSU Announced successfully.');
 
             // Run channel renames after replying — they are rate-limited by Discord and

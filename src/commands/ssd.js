@@ -64,6 +64,21 @@ module.exports = {
             // Grey out / disable the priority request button during SSD
             await setPriorityButtonState(client, guildId, true);
 
+            // Mark session as inactive for shift monitoring
+            client.settings.set(guildId, {
+                ...client.settings.get(guildId),
+                sessionActive: false,
+                sessionStartTime: null,
+            });
+
+            // Reset shift data
+            try {
+                const shiftMonitor = require('../events/shiftMonitor');
+                shiftMonitor.resetSessionData();
+            } catch (e) {
+                console.warn('[SSD] Could not reset shift monitor:', e.message);
+            }
+
             const shutdownResult = await runCommand(':shutdown');
             let msg;
             if (shutdownResult !== null) {

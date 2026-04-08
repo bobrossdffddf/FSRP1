@@ -1,0 +1,220 @@
+/swagger/doc.json
+Explore
+Melonly API
+ 1.0 
+OAS 2.0
+[ Base URL: api.melonly.xyz/api/v1 ]
+/swagger/doc.json
+Melonlys Public API
+
+Terms of service
+Schemes
+
+https
+
+Authorize
+applications
+
+
+GET
+/server/applications
+Get server applications
+
+
+
+GET
+/server/applications/user/{userId}/responses
+Get user application responses
+
+
+
+GET
+/server/applications/{applicationId}
+Get a specific application
+
+
+
+GET
+/server/applications/{applicationId}/responses
+Get application responses
+
+
+audit-logs
+
+
+GET
+/server/audit-logs
+Get server audit logs
+
+
+Server
+
+
+GET
+/server/info
+Get server information
+
+
+join-requests
+
+
+GET
+/server/join-requests
+Get server join requests
+
+
+
+GET
+/server/join-requests/{userId}
+Get a specific join request
+
+
+loas
+
+
+GET
+/server/loas
+Get server LOAs
+
+
+
+GET
+/server/loas/user/{memberId}
+Get user LOAs
+
+
+
+GET
+/server/loas/{loaId}
+Get a specific LOA
+
+
+logs
+
+
+GET
+/server/logs
+Get server logs
+
+
+
+GET
+/server/logs/staff/{memberId}
+Get staff logs
+
+
+
+GET
+/server/logs/user/{username}
+Get user logs
+
+
+
+GET
+/server/logs/{logId}
+Get a specific log
+
+
+members
+
+
+GET
+/server/members
+Get server members
+
+
+
+GET
+/server/members/discord/{discordId}
+Get a specific member by Discord ID
+
+
+
+GET
+/server/members/{memberId}
+Get a specific member
+
+
+
+GET
+/server/members/{memberId}/discord
+Get Discord ID by member ID
+
+
+roles
+
+
+GET
+/server/roles
+Get server roles
+
+
+
+GET
+/server/roles/{roleId}
+Get a specific role
+
+
+shifts
+
+
+GET
+/server/shifts
+Get server shifts
+
+
+
+GET
+/server/shifts/user/{memberId}
+Get shifts for a specific member
+
+
+
+GET
+/server/shifts/{shiftId}
+Get a specific shift
+
+
+verification
+
+
+GET
+/verification/discord/{discordId}/roblox
+Get Roblox connection by Discord ID
+
+
+
+GET
+/verification/roblox/{robloxId}/discord
+Get Discord account by Roblox ID
+
+
+
+Models
+models.AccountAPIResponse
+models.ApplicationAPIResponse
+models.ApplicationListResponse
+models.ApplicationResponseAPIResponse
+models.ApplicationResponseListResponse
+models.AuditLogEventAPIResponse
+models.AuditLogListResponse
+models.BadRequestResponse
+models.DiscordIDResponse
+models.InternalServerErrorResponse
+models.JoinRequestAPIResponse
+models.JoinRequestListResponse
+models.LOAAPIResponse
+models.LOAListResponse
+models.LogAPIResponse
+models.LogListResponse
+models.MemberAPIResponse
+models.MemberListResponse
+models.NotFoundResponse
+models.RobloxConnectionAPIResponse
+models.RoleAPIResponse
+models.RoleListResponse
+models.ServerAPIResponse
+models.ShiftAPIResponse
+models.ShiftListResponse
+models.UnauthorizedResponse
+Error

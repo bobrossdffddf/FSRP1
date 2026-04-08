@@ -110,9 +110,21 @@ async function jailPlayer(player, reason = '') {
     return runCommand(cmd);
 }
 
+async function getModCalls() {
+    checkKey();
+    try {
+        const res = await erlcApi.get('/modcalls');
+        return Array.isArray(res.data) ? res.data : [];
+    } catch (error) {
+        console.warn('Error fetching ERLC mod calls:', error.message);
+        return [];
+    }
+}
+
 module.exports = {
     getServerInfo,
     getPlayers,
+    getModCalls,
     runCommand,
     pmPlayer,
     jailPlayer,
