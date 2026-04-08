@@ -3,12 +3,14 @@ const { getModCalls, getPlayerName } = require('../api/erlc');
 const { getMemberByDiscordId, getShiftsForMember, getServerShifts } = require('../api/melonly');
 
 // ── Tunables ──────────────────────────────────────────────────────────────────
-const POLL_INTERVAL_MS   = 60_000;       // poll ERLC every 60s
-const EVAL_INTERVAL_MS   = 5 * 60_000;  // evaluate staff every 5 min
-const WARN_THRESHOLD     = 0.60;        // below 60% fair share → warning
-const SHOUTOUT_THRESHOLD = 1.30;        // above 130% fair share → shoutout
-const WARN_COOLDOWN_MS   = 15 * 60_000; // 15 min between warnings per person
-const SCANS_TO_FLAG      = 2;           // consecutive bad scans before escalating to flag
+const POLL_INTERVAL_MS      = 60_000;        // poll ERLC every 60s
+const EVAL_INTERVAL_MS      = 5 * 60_000;   // evaluate staff every 5 min
+const WARN_THRESHOLD        = 0.60;         // below 60% fair share → warning
+const SHOUTOUT_THRESHOLD    = 1.30;         // above 130% fair share → shoutout
+const WARN_COOLDOWN_MS      = 15 * 60_000;  // 15 min between warnings per person
+const SCANS_TO_FLAG         = 2;            // consecutive bad scans before escalating to flag
+const MIN_CALLS_TO_EVALUATE = 5;            // need at least this many total calls before evaluating anyone
+const MIN_SESSION_MS        = 10 * 60_000;  // session must be at least 10 min old before evaluating
 
 // ── Assets ────────────────────────────────────────────────────────────────────
 const LOGO_URL   = 'https://i.postimg.cc/T1K1HQCs/FSR-logo-with-tropical-scene.webp';
@@ -253,7 +255,13 @@ async function evaluateStaff(client) {
 
     const settings = client.settings.get(guildId) || {};
     if (!settings.sessionActive || !settings.sessionStartTime) return;
-    if (sessionTotalCalls === 0) return;
+
+    // Don't evaluate if there aren't enough calls to make meaningful comparisons
+    if (sessionTotalCalls < MIN_CALLS_TO_EVALUATE) return;
+
+    // Don't evaluate within the first 10 minutes of a session
+    const sessionAge = Date.now() - settings.sessionStartTime;
+    if (sessionAge < MIN_SESSION_MS) return;
 
     const shiftChannelId = settings.shiftChannelId;
     const flagChannelId  = settings.flagChannelId || shiftChannelId;
@@ -271,6 +279,9 @@ async function evaluateStaff(client) {
     const flagRoleIds = settings.flagRoleIds || [];
 
     for (const [modName, callCount] of modCallCounts.entries()) {
+        // Never warn/flag someone who has answered 0 calls — they may have just joined
+        if (!callCount || callCount === 0) continue;
+
         const shareRatio    = numActiveStaff === 1 ? 1 : callCount / (sessionTotalCalls / numActiveStaff);
         const discordMember = findDiscordMember(guild, modName);
         const now           = Date.now();

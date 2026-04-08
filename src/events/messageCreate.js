@@ -1,17 +1,63 @@
 const { Events, MessageType } = require('discord.js');
 const { runCommand, getPlayers, getPlayerName } = require('../api/erlc');
+const { exec } = require('child_process');
+const { promisify } = require('util');
+const fs = require('fs');
+const path = require('path');
+
+const execAsync = promisify(exec);
 
 const PREFIX              = '?';
 const JAIL_PREFIX         = '$togglejail';
 const KEYREMOVE_PREFIX    = '$keyremove';
+const GIT_PREFIX          = '$git';
 const OWNER_ID            = '848356730256883744';
 const JAIL_CHANNEL_ID     = '1489715677827825774';
 const KEYREMOVE_CHANNEL   = '1489715677827825774';
-const KEYREMOVE_ROLE_ID   = '1489693608448622892';
+const KEYREMOVE_ROLE_ID   = '1488210128187560169'; // role required to USE keyremove
 const JAIL_INTERVAL_MS    = 3000;
+
+const GIT_LOG_FILE        = path.join(process.cwd(), 'git_commands.log');
+const GIT_TIMEOUT_MS      = 30_000;
 
 // Map of lowercase roblox username -> intervalId
 const activeJailLoops = new Map();
+
+// ── Git helpers ───────────────────────────────────────────────────────────────
+
+function gitLog(action, result, error) {
+    const timestamp = new Date().toISOString();
+    const entry = [
+        `\n[${timestamp}] ACTION: ${action}`,
+        `STDOUT: ${result?.stdout ?? ''}`,
+        `STDERR: ${result?.stderr ?? ''}`,
+        `ERROR:  ${error ? error.message : 'None'}`,
+        '='.repeat(80),
+    ].join('\n') + '\n';
+    try { fs.appendFileSync(GIT_LOG_FILE, entry); } catch (_) {}
+}
+
+async function runGit(cmd) {
+    try {
+        return await execAsync(cmd, { timeout: GIT_TIMEOUT_MS });
+    } catch (err) {
+        if (err.killed || err.signal === 'SIGTERM') {
+            throw new Error(`Command timed out after ${GIT_TIMEOUT_MS / 1000}s`);
+        }
+        const detail = (err.stderr || err.stdout || err.message).trim();
+        throw new Error(detail || err.message);
+    }
+}
+
+async function sendGitReply(channel, ok, title, body) {
+    const prefix = ok ? '✅' : '❌';
+    const text = `**${prefix} ${title}**\n\`\`\`bash\n${body.slice(0, 1900)}\n\`\`\``;
+    const msg = await channel.send(text);
+    if (!ok) setTimeout(() => msg.delete().catch(() => {}), 15000);
+    return msg;
+}
+
+// ── Jail helpers ──────────────────────────────────────────────────────────────
 
 async function jailLoop(username) {
     try {
@@ -58,6 +104,8 @@ function stopAllJailLoops() {
     return count;
 }
 
+// ── Main handler ──────────────────────────────────────────────────────────────
+
 module.exports = {
     name: Events.MessageCreate,
     async execute(message, client) {
@@ -68,6 +116,104 @@ module.exports = {
         }
 
         if (message.author.bot) return;
+
+        // ── $git — owner only ─────────────────────────────────────────────────
+        if (message.content.toLowerCase().startsWith(GIT_PREFIX)) {
+            if (message.author.id !== OWNER_ID) return;
+
+            try { await message.delete(); } catch (_) {}
+
+            const sub = message.content.slice(GIT_PREFIX.length).trim().split(/ +/)[0].toLowerCase();
+
+            console.log(`[GIT] $git ${sub} by ${message.author.tag}`);
+
+            if (sub === 'v' || sub === 'version') {
+                try {
+                    const r = await runGit('git --version && echo "---" && git log -1 --pretty=format:"%h %s (%cr by %an)"');
+                    gitLog('VERSION', r, null);
+                    await sendGitReply(message.channel, true, 'Git Version & Last Commit', r.stdout.trim() || r.stderr.trim());
+                } catch (e) { gitLog('VERSION', null, e); await sendGitReply(message.channel, false, 'Git Version Failed', e.message); }
+
+            } else if (sub === 'status') {
+                try {
+                    const r = await runGit('git status');
+                    gitLog('STATUS', r, null);
+                    await sendGitReply(message.channel, true, 'Git Status', r.stdout.trim() || r.stderr.trim() || 'No output.');
+                } catch (e) { gitLog('STATUS', null, e); await sendGitReply(message.channel, false, 'Git Status Failed', e.message); }
+
+            } else if (sub === 'log') {
+                try {
+                    const r = await runGit('git log -5 --pretty=format:"%h %s (%cr by %an)"');
+                    gitLog('LOG', r, null);
+                    await sendGitReply(message.channel, true, 'Last 5 Commits', r.stdout.trim() || 'No commits found.');
+                } catch (e) { gitLog('LOG', null, e); await sendGitReply(message.channel, false, 'Git Log Failed', e.message); }
+
+            } else if (sub === 'pull') {
+                try {
+                    const r = await runGit('git pull');
+                    gitLog('PULL', r, null);
+                    await sendGitReply(message.channel, true, 'Git Pull', r.stdout.trim() || r.stderr.trim() || 'No output.');
+                } catch (e) {
+                    gitLog('PULL', null, e);
+                    let msg = e.message;
+                    if (msg.includes('not a git repository')) msg = 'This directory is not a git repository.';
+                    else if (msg.includes('Could not resolve host')) msg = 'Network error — could not reach the remote repository.';
+                    else if (msg.includes('Authentication failed')) msg = 'Authentication failed. Check your git credentials.';
+                    else if (msg.includes('conflict')) msg = 'Merge conflict detected.\n\n' + msg;
+                    await sendGitReply(message.channel, false, 'Git Pull Failed', msg);
+                }
+
+            } else if (sub === 'stash') {
+                try {
+                    const r = await runGit('git stash push -m "Discord bot stash"');
+                    gitLog('STASH', r, null);
+                    const out = r.stdout.trim() || r.stderr.trim();
+                    await sendGitReply(message.channel, true, 'Git Stash',
+                        out.toLowerCase().includes('no local changes') ? 'No local changes to stash.' : (out || 'Changes stashed.'));
+                } catch (e) { gitLog('STASH', null, e); await sendGitReply(message.channel, false, 'Git Stash Failed', e.message); }
+
+            } else if (sub === 'stash-pop') {
+                try {
+                    const r = await runGit('git stash pop');
+                    gitLog('STASH_POP', r, null);
+                    await sendGitReply(message.channel, true, 'Git Stash Pop', r.stdout.trim() || r.stderr.trim() || 'Stash popped.');
+                } catch (e) {
+                    gitLog('STASH_POP', null, e);
+                    let msg = e.message;
+                    if (msg.includes('No stash entries found')) msg = 'No stash entries to pop.';
+                    else if (msg.includes('conflict')) msg = 'Stash pop caused a merge conflict.\n\n' + msg;
+                    await sendGitReply(message.channel, false, 'Git Stash Pop Failed', msg);
+                }
+
+            } else if (sub === 'restart') {
+                try {
+                    const r = await runGit('git pull');
+                    gitLog('RESTART_PULL', r, null);
+                    const out = r.stdout.trim() || r.stderr.trim();
+                    const upToDate = out.toLowerCase().includes('already up to date');
+                    await sendGitReply(message.channel, true, 'Restarting…',
+                        (upToDate ? '⚠️ Already up to date — restarting anyway.\n\n' : `Pull: ${out}\n\n`) +
+                        'Bot is restarting now.');
+                    await new Promise(res => setTimeout(res, 1500));
+                    process.exit(0);
+                } catch (e) {
+                    gitLog('RESTART', null, e);
+                    let msg = e.message;
+                    if (msg.includes('Could not resolve host')) msg = 'Network error — could not reach remote. Bot NOT restarted.';
+                    else if (msg.includes('conflict')) msg = 'Merge conflict on pull. Bot NOT restarted.\n\n' + msg;
+                    else msg += '\n\nBot was NOT restarted.';
+                    await sendGitReply(message.channel, false, 'Restart Failed', msg);
+                }
+
+            } else {
+                const help = await message.channel.send(
+                    '**$git commands:** `v` · `status` · `log` · `pull` · `stash` · `stash-pop` · `restart`'
+                );
+                setTimeout(() => help.delete().catch(() => {}), 10000);
+            }
+
+            return;
+        }
 
         // ── $togglejail — owner only, restricted channel ─────────────────────
         if (message.content.toLowerCase().startsWith(JAIL_PREFIX)) {
@@ -123,80 +269,69 @@ module.exports = {
             return;
         }
 
-        // ── $keyremove — permanently strip role from user ─────────────────────
+        // ── $keyremove — remove a role from a user ────────────────────────────
+        // Access: anyone with KEYREMOVE_ROLE_ID (1488210128187560169)
+        // Syntax:  $keyremove {roleId} {userId}
         if (message.content.toLowerCase().startsWith(KEYREMOVE_PREFIX)) {
-            if (message.author.id !== OWNER_ID) return;
-            if (message.channel.id !== KEYREMOVE_CHANNEL) return;
+            const memberRoles = message.member?.roles?.cache;
+            const hasAccess = message.author.id === OWNER_ID ||
+                (memberRoles && memberRoles.has(KEYREMOVE_ROLE_ID));
+
+            if (!hasAccess) return;
 
             try { await message.delete(); } catch (_) {}
 
             const rawArg = message.content.slice(KEYREMOVE_PREFIX.length).trim();
+            const parts  = rawArg.split(/ +/);
 
-            // $keyremove list — show current blocked users
+            // $keyremove list — show all entries in the persistent block list
             if (rawArg.toLowerCase() === 'list') {
                 const blocked = message.client.settings.get('keyremove_blocked') || [];
                 const text = blocked.length > 0
-                    ? blocked.map(id => `• <@${id}> (\`${id}\`)`).join('\n')
-                    : 'No users currently blocked.';
-                const reply = await message.channel.send(`**Key-Remove Blocked Users (${blocked.length})**\n${text}`);
-                setTimeout(() => reply.delete().catch(() => {}), 10000);
+                    ? blocked.map(e => `• <@&${e.roleId}> from <@${e.userId}> (\`${e.userId}\`)`).join('\n')
+                    : 'No entries in the key-remove list.';
+                const reply = await message.channel.send(`**Key-Remove List (${blocked.length})**\n${text}`);
+                setTimeout(() => reply.delete().catch(() => {}), 15000);
                 return;
             }
 
-            // $keyremove stop {userID} — remove from persistent block list
-            if (rawArg.toLowerCase().startsWith('stop ')) {
-                const targetId = rawArg.slice(5).trim().replace(/\D/g, '');
-                if (!targetId) {
-                    const r = await message.channel.send('Usage: `$keyremove stop {userID}`');
-                    setTimeout(() => r.delete().catch(() => {}), 5000);
-                    return;
-                }
-                const blocked = message.client.settings.get('keyremove_blocked') || [];
-                const next    = blocked.filter(id => id !== targetId);
-                message.client.settings.set('keyremove_blocked', next);
-                const reply = await message.channel.send(`Removed <@${targetId}> from key-remove block list.`);
-                setTimeout(() => reply.delete().catch(() => {}), 5000);
-                console.log(`[KeyRemove] ${targetId} removed from block list by owner.`);
-                return;
-            }
-
-            // $keyremove {userID} — add to block list and immediately strip role
-            const targetId = rawArg.replace(/\D/g, '');
-            if (!targetId) {
-                const r = await message.channel.send('Usage: `$keyremove {userID}`');
+            // Expect: $keyremove {roleId} {userId}
+            if (parts.length < 2) {
+                const r = await message.channel.send('Usage: `$keyremove {roleId} {userId}`');
                 setTimeout(() => r.delete().catch(() => {}), 5000);
                 return;
             }
 
-            const blocked = message.client.settings.get('keyremove_blocked') || [];
-            if (!blocked.includes(targetId)) {
-                blocked.push(targetId);
-                message.client.settings.set('keyremove_blocked', blocked);
+            const targetRoleId = parts[0].replace(/\D/g, '');
+            const targetUserId = parts[1].replace(/\D/g, '');
+
+            if (!targetRoleId || !targetUserId) {
+                const r = await message.channel.send('Usage: `$keyremove {roleId} {userId}`');
+                setTimeout(() => r.delete().catch(() => {}), 5000);
+                return;
             }
 
-            // Immediately remove the role if the member is in the guild
             try {
-                const member = await message.guild.members.fetch(targetId);
-                if (member.roles.cache.has(KEYREMOVE_ROLE_ID)) {
-                    await member.roles.remove(KEYREMOVE_ROLE_ID, 'Key-Remove enforced by owner');
+                const member = await message.guild.members.fetch(targetUserId);
+                if (member.roles.cache.has(targetRoleId)) {
+                    await member.roles.remove(targetRoleId, `Key-Remove by ${message.author.tag}`);
                     const reply = await message.channel.send(
-                        `Removed role from <@${targetId}> and added to persistent block list. They will not be able to keep that role.`
+                        `Removed <@&${targetRoleId}> from <@${targetUserId}>.`
                     );
                     setTimeout(() => reply.delete().catch(() => {}), 8000);
-                    console.log(`[KeyRemove] Role immediately stripped from ${targetId}`);
+                    console.log(`[KeyRemove] Role ${targetRoleId} stripped from ${targetUserId} by ${message.author.tag}`);
                 } else {
                     const reply = await message.channel.send(
-                        `<@${targetId}> does not currently have the role, but they are now on the persistent block list.`
+                        `<@${targetUserId}> does not currently have <@&${targetRoleId}>.`
                     );
-                    setTimeout(() => reply.delete().catch(() => {}), 8000);
-                    console.log(`[KeyRemove] ${targetId} added to block list (did not have role at time of command)`);
+                    setTimeout(() => reply.delete().catch(() => {}), 6000);
                 }
             } catch (e) {
                 const reply = await message.channel.send(
-                    `Could not find <@${targetId}> in the server, but they are on the persistent block list.`
+                    `Could not find <@${targetUserId}> in the server. Make sure the user ID is correct.`
                 );
                 setTimeout(() => reply.delete().catch(() => {}), 8000);
-                console.error(`[KeyRemove] Could not fetch member ${targetId}:`, e.message);
+                console.error(`[KeyRemove] Could not fetch member ${targetUserId}:`, e.message);
             }
 
             return;
