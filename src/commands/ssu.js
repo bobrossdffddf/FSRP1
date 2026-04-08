@@ -11,29 +11,27 @@ module.exports = {
         .setDefaultMemberPermissions(0n),
 
     async execute(interaction, client) {
-        // Defer separately so a stale/slow interaction doesn't abort the business logic
-        let deferred = false;
-        try {
-            await interaction.deferReply({ flags: 64 });
-            deferred = true;
-        } catch (e) {
-            console.error('[SSU] Failed to defer interaction:', e.message);
-        }
+        // Defer up-front; swallow any "already acknowledged" errors gracefully
+        await interaction.deferReply({ flags: 64 }).catch(() => {});
 
         const safeReply = async (content) => {
-            if (!deferred) return;
+            const payload = typeof content === 'string' ? { content } : content;
             try {
-                await interaction.editReply(typeof content === 'string' ? { content } : content);
+                if (interaction.deferred || interaction.replied) {
+                    await interaction.editReply(payload);
+                } else {
+                    await interaction.reply({ ...payload, flags: 64 });
+                }
             } catch (e) {
-                console.error('[SSU] Failed to edit reply:', e.message);
+                console.error('[SSU] Failed to send reply:', e.message);
             }
         };
 
         try {
-            const guildId = interaction.guild.id;
+            const guildId  = interaction.guild.id;
             const settings = client.settings.get(guildId);
 
-            if (!settings || !settings.ssuChannelId) {
+            if (!settings?.ssuChannelId) {
                 return await safeReply('Please configure the bot with `/setup` first.');
             }
 
@@ -42,23 +40,23 @@ module.exports = {
                 return await safeReply('The configured SSU channel could not be found.');
             }
 
-            const announcementMessageId = settings.announcementMessageId;
-
             const serverInfo = await getServerInfo();
             let joinCodeInfo = '';
-            let playerCount = 'N/A';
-            let queueCount = 'N/A';
+            let playerCount  = 'N/A';
+            let queueCount   = 'N/A';
 
             if (serverInfo) {
                 joinCodeInfo = `Server Code: \`${serverInfo.JoinKey}\``;
-                playerCount = `${serverInfo.CurrentPlayers}/${serverInfo.MaxPlayers}`;
-                queueCount = serverInfo.QueuePlayers || '0';
+                playerCount  = `${serverInfo.CurrentPlayers}/${serverInfo.MaxPlayers}`;
+                queueCount   = serverInfo.QueuePlayers || '0';
             }
 
             const embed = new EmbedBuilder()
                 .setTitle('Server Start Up')
                 .setColor('#3498db')
-                .setDescription(`We are currently hosting a Server Start Up! Come join our server and roleplay with us.\n\n${joinCodeInfo}\n**Players:** ${playerCount}\n**Queue:** ${queueCount}`)
+                .setDescription(
+                    `We are currently hosting a Server Start Up! Come join our server and roleplay with us.\n\n${joinCodeInfo}\n**Players:** ${playerCount}\n**Queue:** ${queueCount}`
+                )
                 .setImage('https://i.postimg.cc/59HmqpCR/INFormation.png')
                 .setFooter({ text: 'Florida State Roleplay', iconURL: 'https://i.postimg.cc/XY2ZP6S4/e685831118b4a57719b8d66f3092f542.png' })
                 .setTimestamp();
@@ -69,22 +67,20 @@ module.exports = {
                 guildId,
                 channel: ssuChannel,
                 content: pingRole,
-                embeds: [embed],
+                embeds:  [embed],
                 components: [],
-                announcementMessageId,
+                announcementMessageId: settings.announcementMessageId,
             });
 
-            // Re-enable the priority request button now that the server is up
             await setPriorityButtonState(client, guildId, false);
 
-            // Mark session as active for shift monitoring
+            // Mark session as active and reset shift data
             client.settings.set(guildId, {
                 ...client.settings.get(guildId),
-                sessionActive: true,
-                sessionStartTime: Date.now(),
+                sessionActive:     true,
+                sessionStartTime:  Date.now(),
             });
 
-            // Reset any previous shift data
             try {
                 const shiftMonitor = require('../events/shiftMonitor');
                 shiftMonitor.resetSessionData();
@@ -92,16 +88,16 @@ module.exports = {
                 console.warn('[SSU] Could not reset shift monitor:', e.message);
             }
 
-            await safeReply('SSU Announced successfully.');
+            console.log(`[SSU] Session started by ${interaction.user.username}. Shift monitor active.`);
+            await safeReply('✅ SSU Announced successfully. Shift monitoring is now active.');
 
-            // Run channel renames after replying — they are rate-limited by Discord and
-            // should not block the interaction response or clog the REST queue.
+            // Fire-and-forget channel renames (rate-limited by Discord)
             setSsuChannelState({ guild: interaction.guild, client, isSsu: true, joinCode: serverInfo?.JoinKey })
                 .catch(e => console.error('[SSU] Channel state error:', e.message));
 
         } catch (e) {
             console.error('[SSU] Error:', e.message);
-            await safeReply('Failed to send SSU announcement. Check permissions.');
+            await safeReply('Failed to send SSU announcement. Check my permissions in the SSU channel.');
         }
     },
 };

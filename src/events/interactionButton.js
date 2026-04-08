@@ -119,8 +119,7 @@ module.exports = {
                     });
                 }
 
-                const modName  = interaction.customId.slice('scflag_resolve:'.length);
-                const flagData = activeFlags.get(modName);
+                const modName = interaction.customId.slice('scflag_resolve:'.length);
 
                 // Reset consecutive scan count so they get a clean slate
                 consecutiveBadScans.delete(modName);

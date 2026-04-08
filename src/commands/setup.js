@@ -29,17 +29,17 @@ module.exports = {
         .addChannelOption(option =>
             option
                 .setName('priority_channel')
-                .setDescription('Channel to post the "Request a Priority" button.')
+                .setDescription('Channel where the permanent priority-request button is posted.')
                 .setRequired(false))
         .addChannelOption(option =>
             option
                 .setName('infraction_channel')
-                .setDescription('Channel where staff infraction embeds are posted.')
+                .setDescription('Channel where staff infraction notices are posted.')
                 .setRequired(false))
         .addChannelOption(option =>
             option
                 .setName('promotion_channel')
-                .setDescription('Channel where staff promotion embeds are posted.')
+                .setDescription('Channel where staff promotion announcements are posted.')
                 .setRequired(false))
         .addChannelOption(option =>
             option
@@ -74,17 +74,16 @@ module.exports = {
 
     async execute(interaction, client) {
         if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
-            return interaction.reply({
-                content: 'Only server administrators can use `/setup`.',
-                flags: 64
-            });
+            return safeReply(interaction, { content: 'Only server administrators can use `/setup`.', flags: 64 });
         }
 
-        const ssuChannel = interaction.options.getChannel('ssu_channel');
-        const pingRole = interaction.options.getRole('ping_role');
-        const logsChannel = interaction.options.getChannel('logs_channel');
-        const priorityChannel = interaction.options.getChannel('priority_channel');
+        // Defer immediately so we have 15 minutes to respond
+        await interaction.deferReply({ flags: 64 }).catch(() => {});
 
+        const ssuChannel          = interaction.options.getChannel('ssu_channel');
+        const pingRole            = interaction.options.getRole('ping_role');
+        const logsChannel         = interaction.options.getChannel('logs_channel');
+        const priorityChannel     = interaction.options.getChannel('priority_channel');
         const infractionChannel   = interaction.options.getChannel('infraction_channel');
         const promotionChannel    = interaction.options.getChannel('promotion_channel');
         const staffRequestChannel = interaction.options.getChannel('staffrequest_channel');
@@ -105,18 +104,18 @@ module.exports = {
                 .setTitle('Current Server Configuration')
                 .setColor(0x5865F2)
                 .addFields(
-                    { name: '📢 SSU Channel', value: existing.ssuChannelId ? `<#${existing.ssuChannelId}>` : 'Not configured', inline: true },
-                    { name: '🔔 Ping Role', value: existing.pingRoleId ? `<@&${existing.pingRoleId}>` : 'Not configured', inline: true },
-                    { name: '📝 Logs Channel', value: existing.logsChannelId ? `<#${existing.logsChannelId}>` : 'Not configured', inline: true },
-                    { name: '🚨 Priority Channel', value: existing.priorityChannelId ? `<#${existing.priorityChannelId}>` : 'Not configured', inline: true },
-                    { name: '⚠️ Infraction Channel', value: existing.infractionChannelId ? `<#${existing.infractionChannelId}>` : 'Not configured', inline: true },
-                    { name: '🎉 Promotion Channel', value: existing.promotionChannelId ? `<#${existing.promotionChannelId}>` : 'Not configured', inline: true },
-                    { name: '🆘 Staff Request Channel', value: existing.staffRequestChannelId ? `<#${existing.staffRequestChannelId}>` : 'Not configured', inline: true },
-                    { name: '📊 Shift Channel',    value: existing.shiftChannelId ? `<#${existing.shiftChannelId}>` : 'Not configured', inline: true },
-                    { name: '🚩 Flag Channel',    value: existing.flagChannelId  ? `<#${existing.flagChannelId}>`  : 'Not configured (uses shift channel)', inline: true },
+                    { name: '📢 SSU Channel',         value: existing.ssuChannelId         ? `<#${existing.ssuChannelId}>`         : 'Not configured', inline: true },
+                    { name: '🔔 Ping Role',            value: existing.pingRoleId            ? `<@&${existing.pingRoleId}>`          : 'Not configured', inline: true },
+                    { name: '📝 Logs Channel',         value: existing.logsChannelId         ? `<#${existing.logsChannelId}>`        : 'Not configured', inline: true },
+                    { name: '🚨 Priority Channel',     value: existing.priorityChannelId     ? `<#${existing.priorityChannelId}>`    : 'Not configured', inline: true },
+                    { name: '⚠️ Infraction Channel',   value: existing.infractionChannelId   ? `<#${existing.infractionChannelId}>`  : 'Not configured', inline: true },
+                    { name: '🎉 Promotion Channel',    value: existing.promotionChannelId    ? `<#${existing.promotionChannelId}>`   : 'Not configured', inline: true },
+                    { name: '🆘 Staff Request Channel',value: existing.staffRequestChannelId ? `<#${existing.staffRequestChannelId}>`: 'Not configured', inline: true },
+                    { name: '📊 Shift Channel',        value: existing.shiftChannelId        ? `<#${existing.shiftChannelId}>`       : 'Not configured', inline: true },
+                    { name: '🚩 Flag Channel',         value: existing.flagChannelId         ? `<#${existing.flagChannelId}>`        : 'Not configured (uses shift channel)', inline: true },
                     {
                         name: '📣 Flag Ping Roles',
-                        value: (existing.flagRoleIds?.length)
+                        value: existing.flagRoleIds?.length
                             ? existing.flagRoleIds.map(id => `<@&${id}>`).join(' ')
                             : 'Not configured',
                         inline: false,
@@ -125,23 +124,22 @@ module.exports = {
                 .setFooter({ text: 'Run /setup with options to update any of these settings.' })
                 .setTimestamp();
 
-            return interaction.reply({ embeds: [statusEmbed], flags: 64 });
+            return interaction.editReply({ embeds: [statusEmbed] });
         }
 
-        const guildId = interaction.guild.id;
+        const guildId  = interaction.guild.id;
         const existing = client.settings.get(guildId) || {};
-        const updates = {};
+        const updates  = {};
 
-        if (ssuChannel) updates.ssuChannelId = ssuChannel.id;
-        if (pingRole) updates.pingRoleId = pingRole.id;
-        if (logsChannel) updates.logsChannelId = logsChannel.id;
-        if (infractionChannel) updates.infractionChannelId = infractionChannel.id;
-        if (promotionChannel) updates.promotionChannelId = promotionChannel.id;
-        if (staffRequestChannel) updates.staffRequestChannelId = staffRequestChannel.id;
-        if (shiftChannel)  updates.shiftChannelId = shiftChannel.id;
-        if (flagChannel)   updates.flagChannelId  = flagChannel.id;
+        if (ssuChannel)          updates.ssuChannelId          = ssuChannel.id;
+        if (pingRole)            updates.pingRoleId             = pingRole.id;
+        if (logsChannel)         updates.logsChannelId          = logsChannel.id;
+        if (infractionChannel)   updates.infractionChannelId    = infractionChannel.id;
+        if (promotionChannel)    updates.promotionChannelId     = promotionChannel.id;
+        if (staffRequestChannel) updates.staffRequestChannelId  = staffRequestChannel.id;
+        if (shiftChannel)        updates.shiftChannelId         = shiftChannel.id;
+        if (flagChannel)         updates.flagChannelId           = flagChannel.id;
 
-        // Merge new flag role IDs with existing ones (deduplicated, up to 3)
         if (flagRole1 || flagRole2 || flagRole3) {
             const newIds = [flagRole1, flagRole2, flagRole3]
                 .filter(Boolean)
@@ -161,9 +159,8 @@ module.exports = {
                 updates.priorityMessageId = sent.id;
             } catch (e) {
                 console.error('[Setup] Failed to send priority button:', e.message);
-                return interaction.reply({
+                return interaction.editReply({
                     content: `Could not send priority button to <#${priorityChannel.id}>. Make sure I have permission to send messages there.`,
-                    flags: 64,
                 });
             }
         }
@@ -175,18 +172,18 @@ module.exports = {
             .setTitle('✅ Setup Updated')
             .setColor(0x57F287)
             .addFields(
-                { name: '📢 SSU Channel', value: saved.ssuChannelId ? `<#${saved.ssuChannelId}>` : 'Not configured', inline: true },
-                { name: '🔔 Ping Role', value: saved.pingRoleId ? `<@&${saved.pingRoleId}>` : 'Not configured', inline: true },
-                { name: '📝 Logs Channel', value: saved.logsChannelId ? `<#${saved.logsChannelId}>` : 'Not configured', inline: true },
-                { name: '🚨 Priority Channel', value: saved.priorityChannelId ? `<#${saved.priorityChannelId}>` : 'Not configured', inline: true },
-                { name: '⚠️ Infraction Channel', value: saved.infractionChannelId ? `<#${saved.infractionChannelId}>` : 'Not configured', inline: true },
-                { name: '🎉 Promotion Channel', value: saved.promotionChannelId ? `<#${saved.promotionChannelId}>` : 'Not configured', inline: true },
-                { name: '🆘 Staff Request Channel', value: saved.staffRequestChannelId ? `<#${saved.staffRequestChannelId}>` : 'Not configured', inline: true },
-                { name: '📊 Shift Channel',  value: saved.shiftChannelId ? `<#${saved.shiftChannelId}>` : 'Not configured', inline: true },
-                { name: '🚩 Flag Channel',  value: saved.flagChannelId  ? `<#${saved.flagChannelId}>`  : 'Not configured (uses shift channel)', inline: true },
+                { name: '📢 SSU Channel',          value: saved.ssuChannelId         ? `<#${saved.ssuChannelId}>`         : 'Not configured', inline: true },
+                { name: '🔔 Ping Role',             value: saved.pingRoleId            ? `<@&${saved.pingRoleId}>`          : 'Not configured', inline: true },
+                { name: '📝 Logs Channel',          value: saved.logsChannelId         ? `<#${saved.logsChannelId}>`        : 'Not configured', inline: true },
+                { name: '🚨 Priority Channel',      value: saved.priorityChannelId     ? `<#${saved.priorityChannelId}>`    : 'Not configured', inline: true },
+                { name: '⚠️ Infraction Channel',    value: saved.infractionChannelId   ? `<#${saved.infractionChannelId}>`  : 'Not configured', inline: true },
+                { name: '🎉 Promotion Channel',     value: saved.promotionChannelId    ? `<#${saved.promotionChannelId}>`   : 'Not configured', inline: true },
+                { name: '🆘 Staff Request Channel', value: saved.staffRequestChannelId ? `<#${saved.staffRequestChannelId}>`: 'Not configured', inline: true },
+                { name: '📊 Shift Channel',         value: saved.shiftChannelId        ? `<#${saved.shiftChannelId}>`       : 'Not configured', inline: true },
+                { name: '🚩 Flag Channel',          value: saved.flagChannelId         ? `<#${saved.flagChannelId}>`        : 'Not configured (uses shift channel)', inline: true },
                 {
                     name: '📣 Flag Ping Roles',
-                    value: (saved.flagRoleIds?.length)
+                    value: saved.flagRoleIds?.length
                         ? saved.flagRoleIds.map(id => `<@&${id}>`).join(' ')
                         : 'Not configured',
                     inline: false,
@@ -195,6 +192,17 @@ module.exports = {
             .setFooter({ text: `Updated by ${interaction.user.username}` })
             .setTimestamp();
 
-        return interaction.reply({ embeds: [resultEmbed], flags: 64 });
+        return interaction.editReply({ embeds: [resultEmbed] });
     },
 };
+
+async function safeReply(interaction, options) {
+    try {
+        if (interaction.deferred || interaction.replied) {
+            return interaction.editReply(options);
+        }
+        return interaction.reply(options);
+    } catch (e) {
+        console.error('[Setup] safeReply failed:', e.message);
+    }
+}
