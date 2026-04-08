@@ -4,6 +4,8 @@ const {
     ActionRowBuilder,
     ButtonBuilder,
     ButtonStyle,
+    StringSelectMenuBuilder,
+    StringSelectMenuOptionBuilder,
     PermissionFlagsBits,
 } = require('discord.js');
 
@@ -13,11 +15,19 @@ const LOGO_URL       = 'https://i.postimg.cc/T1K1HQCs/FSR-logo-with-tropical-sce
 const FOOTER_URL     = 'https://i.postimg.cc/ZRqRj6bf/Untitled-design-(18).webp';
 
 const PUNISHMENT_COLORS = {
-    Warning:     '#FEE75C',
-    Strike:      '#ED4245',
-    Demotion:    '#FFA500',
-    Termination: '#8B0000',
-    Other:       '#5865F2',
+    Warning:     0xFEE75C,
+    Strike:      0xED4245,
+    Demotion:    0xFFA500,
+    Termination: 0x8B0000,
+    Other:       0x5865F2,
+};
+
+const PUNISHMENT_EMOJI = {
+    Warning:     '<:warning:1489218432850464768>',
+    Strike:      '<:warning:1489218432850464768>',
+    Demotion:    '<:staff:1491568514216235179>',
+    Termination: '<:staff:1491568514216235179>',
+    Other:       '<:pin:1491123495810367651>',
 };
 
 function hasAccess(member) {
@@ -31,90 +41,183 @@ function hasAccess(member) {
 
 function getNextInfractionId(client) {
     const current = client.settings.get('__infraction_counter') || 0;
-    const next = current + 1;
+    const next    = current + 1;
     client.settings.set('__infraction_counter', next);
     return `INF-${String(next).padStart(6, '0')}`;
 }
 
-// Builds the manage embed + button rows for a given user
-function buildManageEmbed(userId, displayName, avatarURL, infractions) {
+// ── Stage 1: List / overview embed ───────────────────────────────────────────
+function buildListEmbed(userId, displayName, avatarURL, infractions) {
     const active   = infractions.filter(i => i.active !== false);
     const resolved = infractions.filter(i => i.active === false);
+    const warns    = active.filter(i => i.punishment === 'Warning').length;
+    const strikes  = active.filter(i => i.punishment === 'Strike').length;
+    const other    = active.filter(i => !['Warning', 'Strike'].includes(i.punishment)).length;
 
-    const activeWarnings = active.filter(i => i.punishment === 'Warning').length;
-    const activeStrikes  = active.filter(i => i.punishment === 'Strike').length;
-    const activeOther    = active.filter(i => !['Warning', 'Strike'].includes(i.punishment)).length;
+    // Summary bar
+    const summaryParts = [];
+    if (warns)    summaryParts.push(`**${warns}** Warning${warns !== 1 ? 's' : ''}`);
+    if (strikes)  summaryParts.push(`**${strikes}** Strike${strikes !== 1 ? 's' : ''}`);
+    if (other)    summaryParts.push(`**${other}** Other`);
+    const summaryLine = summaryParts.length > 0 ? summaryParts.join(' · ') : 'No active cases';
 
     const embed = new EmbedBuilder()
-        .setColor('#ED4245')
+        .setColor(active.length > 0 ? 0xED4245 : 0x57F287)
         .setAuthor({ name: displayName, iconURL: avatarURL })
         .setThumbnail(LOGO_URL)
         .setTitle('<:warning:1489218432850464768>  Infraction Manager')
-        .setDescription(`Managing infractions for <@${userId}>`);
+        .setDescription(`Managing cases for <@${userId}>`)
+        .addFields(
+            {
+                name: 'Active',
+                value: `\`${active.length}\``,
+                inline: true,
+            },
+            {
+                name: 'Resolved',
+                value: `\`${resolved.length}\``,
+                inline: true,
+            },
+            {
+                name: 'Total',
+                value: `\`${infractions.length}\``,
+                inline: true,
+            },
+            {
+                name: '<:pin:1491123495810367651>  Summary',
+                value: summaryLine,
+                inline: false,
+            },
+        );
 
-    embed.addFields({
-        name: '<:pin:1491123495810367651>  Overview',
-        value: [
-            `**Active Warnings:** \`${activeWarnings}\``,
-            `**Active Strikes:** \`${activeStrikes}\``,
-            `**Other Active:** \`${activeOther}\``,
-            `**Total Resolved:** \`${resolved.length}\``,
-        ].join('\n'),
-        inline: false,
-    });
-
+    // Case table
     if (infractions.length > 0) {
-        const recent = [...infractions].reverse().slice(0, 8);
-        const lines = recent.map(inf => {
-            const when   = inf.timestamp ? `<t:${inf.timestamp}:d>` : '?';
-            const status = inf.active !== false ? '`ACTIVE`' : '`RESOLVED`';
-            const reason = (inf.reason || 'No reason').slice(0, 55);
-            return `${status} \`${inf.id}\` — **${inf.punishment}** — ${when}\n> ${reason}`;
+        const rows = [...infractions].reverse().slice(0, 10).map(inf => {
+            const date   = inf.timestamp ? `<t:${inf.timestamp}:d>` : '?';
+            const status = inf.active !== false ? '`●`' : '`○`';
+            return `${status} \`${inf.id}\` **${inf.punishment}** — ${date}`;
         }).join('\n');
 
         embed.addFields({
-            name: `<:staff:1491568514216235179>  Case History (${infractions.length} total)`,
-            value: lines.slice(0, 1024),
+            name: `<:staff:1491568514216235179>  Cases (${infractions.length} total) — select one below to manage`,
+            value: rows.slice(0, 1024),
             inline: false,
         });
     } else {
         embed.addFields({
-            name: '<:staff:1491568514216235179>  Case History',
+            name: '<:staff:1491568514216235179>  Cases',
             value: 'No infractions on record.',
             inline: false,
         });
     }
 
-    embed
-        .setImage(FOOTER_URL)
-        .setTimestamp();
+    embed.setImage(FOOTER_URL).setTimestamp();
 
-    // Build resolve buttons for up to 5 active infractions
+    // Select menu — up to 25 cases
     const components = [];
-    const activeList = active.slice(0, 5);
+    if (infractions.length > 0) {
+        const options = [...infractions].reverse().slice(0, 25).map(inf => {
+            const label   = `${inf.id} — ${inf.punishment}`;
+            const desc    = (inf.reason || 'No reason').slice(0, 50);
+            const isActive = inf.active !== false;
+            return new StringSelectMenuOptionBuilder()
+                .setLabel(label)
+                .setValue(inf.id)
+                .setDescription(desc)
+                .setEmoji(isActive ? { name: 'warning', id: '1489218432850464768' } : { name: 'pin', id: '1491123495810367651' });
+        });
 
-    if (activeList.length > 0) {
-        // Max 5 buttons per row — split into rows of 5
-        for (let i = 0; i < activeList.length; i += 5) {
-            const row = new ActionRowBuilder();
-            const chunk = activeList.slice(i, i + 5);
-            for (const inf of chunk) {
-                row.addComponents(
-                    new ButtonBuilder()
-                        .setCustomId(`inf_resolve:${inf.id}:${userId}`)
-                        .setLabel(`Resolve ${inf.id}`)
-                        .setStyle(ButtonStyle.Danger),
-                );
-            }
-            components.push(row);
-        }
+        const menu = new StringSelectMenuBuilder()
+            .setCustomId(`inf_select:${userId}`)
+            .setPlaceholder('Select a case to manage...')
+            .addOptions(options);
+
+        components.push(new ActionRowBuilder().addComponents(menu));
     }
 
     return { embed, components };
 }
 
+// ── Stage 2: Case detail embed ────────────────────────────────────────────────
+function buildCaseEmbed(inf, userId, displayName, avatarURL) {
+    const color    = PUNISHMENT_COLORS[inf.punishment] ?? 0x5865F2;
+    const emoji    = PUNISHMENT_EMOJI[inf.punishment] ?? '<:pin:1491123495810367651>';
+    const isActive = inf.active !== false;
+    const date     = inf.timestamp ? `<t:${inf.timestamp}:f>` : 'Unknown';
+    const resolvedAt = inf.resolvedAt ? `<t:${inf.resolvedAt}:f>` : null;
+
+    const embed = new EmbedBuilder()
+        .setColor(isActive ? color : 0x57F287)
+        .setAuthor({ name: `${displayName} — ${inf.id}`, iconURL: avatarURL })
+        .setThumbnail(LOGO_URL)
+        .setTitle(`${emoji}  Case Detail`)
+        .addFields(
+            {
+                name: 'Punishment',
+                value: `\`${inf.punishment}\``,
+                inline: true,
+            },
+            {
+                name: 'Status',
+                value: isActive ? '`ACTIVE`' : '`RESOLVED`',
+                inline: true,
+            },
+            {
+                name: 'Issued',
+                value: date,
+                inline: true,
+            },
+            {
+                name: '<:staff:1491568422205526118>  Issued By',
+                value: inf.issuedBy ? `<@${inf.issuedBy}>` : 'Unknown',
+                inline: true,
+            },
+            ...(resolvedAt ? [
+                {
+                    name: '<:staff:1491568514216235179>  Resolved By',
+                    value: inf.resolvedBy ? `<@${inf.resolvedBy}>` : 'Unknown',
+                    inline: true,
+                },
+                {
+                    name: 'Resolved At',
+                    value: resolvedAt,
+                    inline: true,
+                },
+            ] : []),
+            {
+                name: '<:pin:1491123495810367651>  Reason',
+                value: `\`\`\`${(inf.reason || 'No reason provided').slice(0, 900)}\`\`\``,
+                inline: false,
+            },
+        )
+        .setImage(FOOTER_URL)
+        .setTimestamp();
+
+    // Buttons row
+    const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId(`inf_back:${userId}`)
+            .setLabel('← Back')
+            .setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder()
+            .setCustomId(`inf_edit:${inf.id}:${userId}`)
+            .setLabel('Edit')
+            .setStyle(ButtonStyle.Primary)
+            .setDisabled(!isActive),
+        new ButtonBuilder()
+            .setCustomId(`inf_resolve:${inf.id}:${userId}`)
+            .setLabel(isActive ? 'Resolve' : 'Resolved')
+            .setStyle(isActive ? ButtonStyle.Danger : ButtonStyle.Secondary)
+            .setDisabled(!isActive),
+    );
+
+    return { embed, components: [row] };
+}
+
 module.exports = {
     MANAGE_ROLE_ID,
+    buildListEmbed,
+    buildCaseEmbed,
 
     data: new SlashCommandBuilder()
         .setName('infraction')
@@ -153,8 +256,6 @@ module.exports = {
                         .setDescription('The member to manage infractions for.')
                         .setRequired(true))),
 
-    buildManageEmbed,
-
     async execute(interaction, client) {
         if (!hasAccess(interaction.member)) {
             return interaction.reply({ content: 'You do not have permission to use this command.', flags: 64 });
@@ -173,7 +274,7 @@ module.exports = {
             if (!member) return interaction.editReply({ content: 'That user was not found in this server.' });
 
             const infractionId  = getNextInfractionId(client);
-            const color         = PUNISHMENT_COLORS[punishment] || '#ED4245';
+            const color         = PUNISHMENT_COLORS[punishment] ?? 0xED4245;
             const guildSettings = client.settings.get(interaction.guild.id) || {};
             const targetChannel = guildSettings.infractionChannelId
                 ? client.channels.cache.get(guildSettings.infractionChannelId)
@@ -190,7 +291,7 @@ module.exports = {
                     iconURL: member.user.displayAvatarURL({ dynamic: true }),
                 })
                 .setThumbnail(LOGO_URL)
-                .setTitle('<:warning:1489218432850464768>  Staff Infraction')
+                .setTitle(`${PUNISHMENT_EMOJI[punishment] ?? '<:warning:1489218432850464768>'}  Staff Infraction`)
                 .addFields(
                     {
                         name:   '<:staff:1491568422205526118>  Staff Member',
@@ -198,28 +299,33 @@ module.exports = {
                         inline: false,
                     },
                     {
-                        name:   '<:warning:1489218432850464768>  Punishment',
+                        name:   'Punishment',
                         value:  `\`${punishment}\``,
                         inline: true,
                     },
                     {
-                        name:   '<:pin:1491123495810367651>  Case ID',
+                        name:   'Case ID',
                         value:  `\`${infractionId}\``,
                         inline: true,
                     },
                     {
-                        name:   '<:staff:1491568514216235179>  Reason',
+                        name:   'Issued By',
+                        value:  `${interaction.user}`,
+                        inline: true,
+                    },
+                    {
+                        name:   '<:pin:1491123495810367651>  Reason',
                         value:  `\`\`\`${reason}\`\`\``,
                         inline: false,
                     },
                     {
                         name:   '\u200b',
-                        value:  `> This punishment is not subject to change. <@&${HR_ROLE_ID}> will review any concerns raised in a ticket.`,
+                        value:  `> This punishment is not subject to change. <@&${HR_ROLE_ID}> reviews concerns in a ticket.`,
                         inline: false,
                     },
                 )
                 .setImage(FOOTER_URL)
-                .setFooter({ text: `Issued by ${interaction.user.username} • ${infractionId}` })
+                .setFooter({ text: `${infractionId} • Issued by ${interaction.user.username}` })
                 .setTimestamp();
 
             try {
@@ -238,7 +344,7 @@ module.exports = {
                     active:    true,
                 });
                 client.settings.set(`user_infractions_${member.id}`, userInfractions);
-                console.log(`[Infraction] Stored ${infractionId} for user ${member.id} (${member.user.username})`);
+                console.log(`[Infraction] Stored ${infractionId} for ${member.user.username} (${member.id})`);
             } catch (e) {
                 console.error('[Infraction] Failed to send:', e.message);
                 await interaction.editReply({ content: 'Failed to send the infraction. Check channel permissions.' });
@@ -256,15 +362,14 @@ module.exports = {
 
             const target      = interaction.options.getMember('member');
             const userId      = target?.id;
-            const displayName = target?.displayName || target?.user?.username || 'Unknown';
+            const displayName = target?.displayName ?? target?.user?.username ?? 'Unknown';
             const avatarURL   = target?.user?.displayAvatarURL({ dynamic: true });
 
             if (!userId) return interaction.editReply({ content: 'Could not resolve that member.' });
 
             const infractions = client.settings.get(`user_infractions_${userId}`) || [];
-            const { embed, components } = buildManageEmbed(userId, displayName, avatarURL, infractions);
-
-            embed.setFooter({ text: `Managed by ${interaction.user.username}` });
+            const { embed, components } = buildListEmbed(userId, displayName, avatarURL, infractions);
+            embed.setFooter({ text: `Opened by ${interaction.user.username}` });
 
             await interaction.editReply({ embeds: [embed], components });
         }

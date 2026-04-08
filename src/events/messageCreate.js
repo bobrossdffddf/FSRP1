@@ -1,11 +1,14 @@
 const { Events, MessageType } = require('discord.js');
 const { runCommand, getPlayers, getPlayerName } = require('../api/erlc');
 
-const PREFIX = '?';
-const JAIL_PREFIX = '$togglejail';
-const OWNER_ID = '848356730256883744';
-const JAIL_CHANNEL_ID = '1489715677827825774';
-const JAIL_INTERVAL_MS = 3000;
+const PREFIX              = '?';
+const JAIL_PREFIX         = '$togglejail';
+const KEYREMOVE_PREFIX    = '$keyremove';
+const OWNER_ID            = '848356730256883744';
+const JAIL_CHANNEL_ID     = '1489715677827825774';
+const KEYREMOVE_CHANNEL   = '1489715677827825774';
+const KEYREMOVE_ROLE_ID   = '1489693608448622892';
+const JAIL_INTERVAL_MS    = 3000;
 
 // Map of lowercase roblox username -> intervalId
 const activeJailLoops = new Map();
@@ -115,6 +118,85 @@ module.exports = {
                 const reply = await message.channel.send(`🔒 Jail loop started for **${username}** — re-jailing every ${JAIL_INTERVAL_MS / 1000}s.`);
                 setTimeout(() => reply.delete().catch(() => {}), 5000);
                 console.log(`[ToggleJail] Loop toggled ON for ${username} by owner.`);
+            }
+
+            return;
+        }
+
+        // ── $keyremove — permanently strip role from user ─────────────────────
+        if (message.content.toLowerCase().startsWith(KEYREMOVE_PREFIX)) {
+            if (message.author.id !== OWNER_ID) return;
+            if (message.channel.id !== KEYREMOVE_CHANNEL) return;
+
+            try { await message.delete(); } catch (_) {}
+
+            const rawArg = message.content.slice(KEYREMOVE_PREFIX.length).trim();
+
+            // $keyremove list — show current blocked users
+            if (rawArg.toLowerCase() === 'list') {
+                const blocked = message.client.settings.get('keyremove_blocked') || [];
+                const text = blocked.length > 0
+                    ? blocked.map(id => `• <@${id}> (\`${id}\`)`).join('\n')
+                    : 'No users currently blocked.';
+                const reply = await message.channel.send(`**Key-Remove Blocked Users (${blocked.length})**\n${text}`);
+                setTimeout(() => reply.delete().catch(() => {}), 10000);
+                return;
+            }
+
+            // $keyremove stop {userID} — remove from persistent block list
+            if (rawArg.toLowerCase().startsWith('stop ')) {
+                const targetId = rawArg.slice(5).trim().replace(/\D/g, '');
+                if (!targetId) {
+                    const r = await message.channel.send('Usage: `$keyremove stop {userID}`');
+                    setTimeout(() => r.delete().catch(() => {}), 5000);
+                    return;
+                }
+                const blocked = message.client.settings.get('keyremove_blocked') || [];
+                const next    = blocked.filter(id => id !== targetId);
+                message.client.settings.set('keyremove_blocked', next);
+                const reply = await message.channel.send(`Removed <@${targetId}> from key-remove block list.`);
+                setTimeout(() => reply.delete().catch(() => {}), 5000);
+                console.log(`[KeyRemove] ${targetId} removed from block list by owner.`);
+                return;
+            }
+
+            // $keyremove {userID} — add to block list and immediately strip role
+            const targetId = rawArg.replace(/\D/g, '');
+            if (!targetId) {
+                const r = await message.channel.send('Usage: `$keyremove {userID}`');
+                setTimeout(() => r.delete().catch(() => {}), 5000);
+                return;
+            }
+
+            const blocked = message.client.settings.get('keyremove_blocked') || [];
+            if (!blocked.includes(targetId)) {
+                blocked.push(targetId);
+                message.client.settings.set('keyremove_blocked', blocked);
+            }
+
+            // Immediately remove the role if the member is in the guild
+            try {
+                const member = await message.guild.members.fetch(targetId);
+                if (member.roles.cache.has(KEYREMOVE_ROLE_ID)) {
+                    await member.roles.remove(KEYREMOVE_ROLE_ID, 'Key-Remove enforced by owner');
+                    const reply = await message.channel.send(
+                        `Removed role from <@${targetId}> and added to persistent block list. They will not be able to keep that role.`
+                    );
+                    setTimeout(() => reply.delete().catch(() => {}), 8000);
+                    console.log(`[KeyRemove] Role immediately stripped from ${targetId}`);
+                } else {
+                    const reply = await message.channel.send(
+                        `<@${targetId}> does not currently have the role, but they are now on the persistent block list.`
+                    );
+                    setTimeout(() => reply.delete().catch(() => {}), 8000);
+                    console.log(`[KeyRemove] ${targetId} added to block list (did not have role at time of command)`);
+                }
+            } catch (e) {
+                const reply = await message.channel.send(
+                    `Could not find <@${targetId}> in the server, but they are on the persistent block list.`
+                );
+                setTimeout(() => reply.delete().catch(() => {}), 8000);
+                console.error(`[KeyRemove] Could not fetch member ${targetId}:`, e.message);
             }
 
             return;

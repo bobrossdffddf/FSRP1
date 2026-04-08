@@ -24,6 +24,10 @@ function fmtDate(ts) {
     return ts ? `<t:${ts}:d>` : '?';
 }
 
+function fmtLongDate(ts) {
+    return ts ? `<t:${ts}:D>` : 'Unknown';
+}
+
 function fmtDuration(startTs, endTs) {
     if (!startTs) return 'Unknown';
     if (!endTs || endTs === 0) return 'Ongoing';
@@ -68,38 +72,48 @@ module.exports = {
         // Local infractions (stored by this bot)
         const localInfractions = client.settings.get(`user_infractions_${discordId}`) || [];
         const localActive      = localInfractions.filter(i => i.active !== false);
+        const localResolved    = localInfractions.filter(i => i.active === false);
+        const localWarn        = localActive.filter(i => i.punishment === 'Warning').length;
+        const localStrike      = localActive.filter(i => i.punishment === 'Strike').length;
+        const localOther       = localActive.filter(i => !['Warning', 'Strike'].includes(i.punishment)).length;
 
-        // Melonly data
-        const melonlyMember = await getMemberByDiscordId(discordId);
+        const headerColor = localStrike > 0 ? 0xED4245
+            : localWarn > 0                 ? 0xFEE75C
+            : 0x5865F2;
 
         const embed = new EmbedBuilder()
-            .setColor('#5865F2')
+            .setColor(headerColor)
             .setAuthor({ name: displayName, iconURL: avatarURL })
             .setThumbnail(LOGO_URL)
-            .setTitle(`<:staff:1491568422205526118>  Staff Lookup — ${displayName}`);
+            .setTitle(`<:staff:1491568422205526118>  Staff Lookup`);
 
-        // ── Local infraction summary ───────────────────────────────────────────
-        const localWarn   = localActive.filter(i => i.punishment === 'Warning').length;
-        const localStrike = localActive.filter(i => i.punishment === 'Strike').length;
+        // ── Local infraction stats ─────────────────────────────────────────────
+        const warnLabel   = localWarn   > 0 ? `**${localWarn}** Warning${localWarn !== 1 ? 's' : ''}` : null;
+        const strikeLabel = localStrike > 0 ? `**${localStrike}** Strike${localStrike !== 1 ? 's' : ''}` : null;
+        const otherLabel  = localOther  > 0 ? `**${localOther}** Other` : null;
+        const activeBreakdown = [warnLabel, strikeLabel, otherLabel].filter(Boolean).join(' · ') || 'Clean record';
 
-        embed.addFields({
-            name: '<:warning:1489218432850464768>  Bot Infractions',
-            value: [
-                `**Active Warnings:** \`${localWarn}\``,
-                `**Active Strikes:** \`${localStrike}\``,
-                `**Total Active:** \`${localActive.length}\`  |  **Total All-Time:** \`${localInfractions.length}\``,
-            ].join('\n'),
-            inline: false,
-        });
+        embed.addFields(
+            {
+                name:   '<:warning:1489218432850464768>  Bot Infractions',
+                value:  [
+                    activeBreakdown,
+                    `Active \`${localActive.length}\` · Resolved \`${localResolved.length}\` · Total \`${localInfractions.length}\``,
+                ].join('\n'),
+                inline: false,
+            },
+        );
 
-        // ── Melonly section ────────────────────────────────────────────────────
+        // ── Melonly data ───────────────────────────────────────────────────────
+        const melonlyMember = await getMemberByDiscordId(discordId);
+
         if (!melonlyMember) {
             embed.addFields({
-                name: '<:pin:1491123495810367651>  Melonly',
-                value: '```Not found in Melonly — they may not be registered.```',
+                name:   '<:pin:1491123495810367651>  Melonly',
+                value:  'Not found — they may not be registered in Melonly.',
                 inline: false,
             });
-            embed.setImage(FOOTER_URL).setFooter({ text: `Requested by ${interaction.user.username} • FSRP` }).setTimestamp();
+            embed.setImage(FOOTER_URL).setFooter({ text: `Lookup by ${interaction.user.username}` }).setTimestamp();
             return interaction.editReply({ embeds: [embed] });
         }
 
@@ -111,48 +125,47 @@ module.exports = {
             getAuditLogs(1, 50),
         ]);
 
-        const logs   = logsResp?.data   || [];
-        const shifts = shiftsResp?.data || [];
-
+        const logs    = logsResp?.data   || [];
+        const shifts  = shiftsResp?.data || [];
         const allAudit = auditResp?.data || [];
         const myAudit  = allAudit.filter(e => {
             const eid = e.memberId || e.member?.id || e.executorId || e.staffId;
             return eid === melonlyId || eid === discordId;
         });
 
-        // Melonly Profile
+        // Melonly profile
         const roles = melonlyMember.roles?.length > 0
-            ? melonlyMember.roles.slice(0, 4).map(r => `\`${r}\``).join(', ')
+            ? melonlyMember.roles.slice(0, 5).map(r => `\`${r}\``).join(', ')
             : '`None`';
 
         embed.addFields({
-            name: '<:pin:1491123495810367651>  Melonly Profile',
-            value: [
+            name:   '<:pin:1491123495810367651>  Melonly Profile',
+            value:  [
                 `**ID:** \`${melonlyId}\``,
-                `**Registered:** ${melonlyMember.createdAt ? `<t:${melonlyMember.createdAt}:D>` : 'Unknown'}`,
+                `**Registered:** ${fmtLongDate(melonlyMember.createdAt)}`,
                 `**Roles:** ${roles}`,
             ].join('\n'),
             inline: false,
         });
 
-        // Melonly Logs
+        // Melonly logs
         if (logs.length > 0) {
             const lines = logs.slice(0, 5).map(log => {
                 const type = LOG_TYPE_LABELS[log.type] ?? `Type ${log.type}`;
                 const date = fmtDate(log.createdAt);
-                const text = (log.text || log.description || 'No description').slice(0, 65);
-                return `\`${type}\` — ${date}\n\`\`\`${text}\`\`\``;
+                const text = (log.text || log.description || 'No description').slice(0, 70);
+                return `\`${type}\` — ${date}\n> ${text}`;
             }).join('\n');
 
             embed.addFields({
-                name: `<:staff:1491568514216235179>  Melonly Logs (${logsResp?.total ?? logs.length} total)`,
-                value: lines.slice(0, 1024),
+                name:   `<:staff:1491568514216235179>  Melonly Logs (${logsResp?.total ?? logs.length} total)`,
+                value:  lines.slice(0, 1024),
                 inline: false,
             });
         } else {
             embed.addFields({
-                name: '<:staff:1491568514216235179>  Melonly Logs',
-                value: '```No logs found.```',
+                name:   '<:staff:1491568514216235179>  Melonly Logs',
+                value:  'No logs found.',
                 inline: false,
             });
         }
@@ -163,24 +176,24 @@ module.exports = {
                 const type     = s.type || 'Standard';
                 const date     = fmtDate(s.createdAt);
                 const duration = fmtDuration(s.createdAt, s.endedAt);
-                const status   = (!s.endedAt || s.endedAt === 0) ? ' `ACTIVE`' : '';
-                return `\`${String(i + 1).padStart(2, '0')}\` **${type}** — ${date} — \`${duration}\`${status}`;
+                const badge    = (!s.endedAt || s.endedAt === 0) ? ' `ACTIVE`' : '';
+                return `\`${String(i + 1).padStart(2, '0')}\` **${type}** — ${date} — \`${duration}\`${badge}`;
             }).join('\n');
 
             embed.addFields({
-                name: `<:pin:1491123495810367651>  Shifts (${shiftsResp?.total ?? shifts.length} total)`,
-                value: lines.slice(0, 1024),
+                name:   `<:pin:1491123495810367651>  Shifts (${shiftsResp?.total ?? shifts.length} total)`,
+                value:  lines.slice(0, 1024),
                 inline: false,
             });
         } else {
             embed.addFields({
-                name: '<:pin:1491123495810367651>  Shifts',
-                value: '```No shifts found.```',
+                name:   '<:pin:1491123495810367651>  Shifts',
+                value:  'No shifts found.',
                 inline: false,
             });
         }
 
-        // Recent commands from audit log
+        // Recent audit commands
         if (myAudit.length > 0) {
             const lines = myAudit.slice(0, 5).map(e => {
                 const action = e.action || e.type || 'Unknown';
@@ -190,21 +203,21 @@ module.exports = {
             }).join('\n');
 
             embed.addFields({
-                name: `<:staff:1491568422205526118>  Recent Commands (${myAudit.length} found)`,
-                value: lines.slice(0, 1024),
+                name:   `<:staff:1491568422205526118>  Recent Commands (${myAudit.length} found)`,
+                value:  lines.slice(0, 1024),
                 inline: false,
             });
         } else {
             embed.addFields({
-                name: '<:staff:1491568422205526118>  Recent Commands',
-                value: '```No recent commands in audit log.```',
+                name:   '<:staff:1491568422205526118>  Recent Commands',
+                value:  'No recent commands in audit log.',
                 inline: false,
             });
         }
 
         embed
             .setImage(FOOTER_URL)
-            .setFooter({ text: `Requested by ${interaction.user.username} • FSRP` })
+            .setFooter({ text: `Lookup by ${interaction.user.username} · FSRP` })
             .setTimestamp();
 
         await interaction.editReply({ embeds: [embed] });

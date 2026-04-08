@@ -41,46 +41,58 @@ module.exports = {
 
         const infractions = client.settings.get(`user_infractions_${userId}`) || [];
         const active      = infractions.filter(i => i.active !== false);
+        const resolved    = infractions.filter(i => i.active === false);
 
-        const activeWarnings = active.filter(i => i.punishment === 'Warning').length;
-        const activeStrikes  = active.filter(i => i.punishment === 'Strike').length;
-        const totalActive    = active.length;
+        const warns   = active.filter(i => i.punishment === 'Warning').length;
+        const strikes = active.filter(i => i.punishment === 'Strike').length;
+        const other   = active.filter(i => !['Warning', 'Strike'].includes(i.punishment)).length;
+
+        const statusColor = active.length === 0     ? 0x57F287
+            : warns >= 2 || strikes >= 1            ? 0xED4245
+            : 0xFEE75C;
 
         const embed = new EmbedBuilder()
-            .setColor('#2B2D31')
+            .setColor(statusColor)
             .setAuthor({ name: displayName, iconURL: avatarURL })
             .setThumbnail(LOGO_URL)
             .setTitle('<:warning:1489218432850464768>  Infraction History')
-            .setDescription(`Infraction history for <@${userId}> | **${displayName}**`);
+            .setDescription(`Infraction record for <@${userId}>`)
+            .addFields(
+                { name: 'Active',   value: `\`${active.length}\``,   inline: true },
+                { name: 'Resolved', value: `\`${resolved.length}\``, inline: true },
+                { name: 'Total',    value: `\`${infractions.length}\``, inline: true },
+            );
 
-        embed.addFields({
-            name: '<:pin:1491123495810367651>  Overview',
-            value: [
-                `**Active Warnings:** ${activeWarnings}`,
-                `**Active Strikes:** ${activeStrikes}`,
-                `**Total Active Cases:** ${totalActive}`,
-            ].join('\n'),
-            inline: false,
-        });
+        if (active.length > 0) {
+            const parts = [];
+            if (warns)   parts.push(`**${warns}** Warning${warns !== 1 ? 's' : ''}`);
+            if (strikes) parts.push(`**${strikes}** Strike${strikes !== 1 ? 's' : ''}`);
+            if (other)   parts.push(`**${other}** Other`);
+            embed.addFields({
+                name:   '<:pin:1491123495810367651>  Active Breakdown',
+                value:  parts.join(' · '),
+                inline: false,
+            });
+        }
 
         if (infractions.length > 0) {
-            const recent = [...infractions].reverse().slice(0, 5);
-            const lines = recent.map(inf => {
-                const when   = inf.timestamp ? `<t:${inf.timestamp}:d>` : 'Unknown';
-                const status = inf.active !== false ? '`ACTIVE`' : '`RESOLVED`';
+            const recent = [...infractions].reverse().slice(0, 6);
+            const lines  = recent.map(inf => {
+                const when   = inf.timestamp ? `<t:${inf.timestamp}:d>` : '?';
+                const badge  = inf.active !== false ? '`●`' : '`○`';
                 const reason = (inf.reason || 'No reason').slice(0, 60);
-                return `${status} \`${inf.id}\` **${inf.punishment}** — ${when}\n> ${reason}`;
+                return `${badge} \`${inf.id}\` **${inf.punishment}** — ${when}\n> ${reason}`;
             }).join('\n');
 
             embed.addFields({
-                name: `<:staff:1491568514216235179>  Case History (${infractions.length} total)`,
-                value: lines.slice(0, 1024),
+                name:   `<:staff:1491568514216235179>  Recent Cases (${infractions.length} total)`,
+                value:  lines.slice(0, 1024),
                 inline: false,
             });
         } else {
             embed.addFields({
-                name: '<:staff:1491568514216235179>  Case History',
-                value: 'No infractions on record.',
+                name:   '<:staff:1491568514216235179>  Cases',
+                value:  'No infractions on record.',
                 inline: false,
             });
         }

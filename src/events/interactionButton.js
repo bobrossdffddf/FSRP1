@@ -72,46 +72,96 @@ module.exports = {
     async execute(interaction, client) {
         // ── Button interactions ────────────────────────────────────────────────
         if (interaction.isButton()) {
-            // ── Infraction resolve button ──────────────────────────────────────
-            if (interaction.customId.startsWith('inf_resolve:')) {
+            // ── Infraction interaction guard ───────────────────────────────────
+            if (interaction.customId.startsWith('inf_')) {
+                const { PermissionFlagsBits } = require('discord.js');
                 const MANAGE_ROLE_ID = infractionCommand.MANAGE_ROLE_ID;
                 const hasRole = interaction.member?.roles?.cache?.has(MANAGE_ROLE_ID);
-                const isAdmin = interaction.member?.permissions?.has(require('discord.js').PermissionFlagsBits.Administrator);
-
+                const isAdmin = interaction.member?.permissions?.has(PermissionFlagsBits.Administrator);
                 if (!hasRole && !isAdmin) {
-                    return interaction.reply({ content: 'You do not have permission to resolve infractions.', flags: 64 });
+                    return interaction.reply({ content: 'You do not have permission to use infraction controls.', flags: 64 });
                 }
 
-                const [, infId, userId] = interaction.customId.split(':');
+                // Helper: fetch target member quietly
+                const fetchTarget = async (userId) => {
+                    try { return await interaction.guild.members.fetch(userId); } catch { return null; }
+                };
 
-                const infractions = client.settings.get(`user_infractions_${userId}`) || [];
-                const idx = infractions.findIndex(i => i.id === infId);
+                // ── Resolve ────────────────────────────────────────────────────
+                if (interaction.customId.startsWith('inf_resolve:')) {
+                    const parts  = interaction.customId.split(':');
+                    const infId  = parts[1];
+                    const userId = parts[2];
 
-                if (idx === -1) {
-                    return interaction.reply({ content: `Infraction \`${infId}\` not found.`, flags: 64 });
+                    const infractions = client.settings.get(`user_infractions_${userId}`) || [];
+                    const idx = infractions.findIndex(i => i.id === infId);
+                    if (idx === -1) return interaction.reply({ content: `Case \`${infId}\` not found.`, flags: 64 });
+                    if (!infractions[idx].active) return interaction.reply({ content: `\`${infId}\` is already resolved.`, flags: 64 });
+
+                    infractions[idx].active     = false;
+                    infractions[idx].resolvedBy = interaction.user.id;
+                    infractions[idx].resolvedAt = Math.floor(Date.now() / 1000);
+                    client.settings.set(`user_infractions_${userId}`, infractions);
+                    console.log(`[Infraction] ${infId} resolved by ${interaction.user.username}`);
+
+                    const target      = await fetchTarget(userId);
+                    const displayName = target?.displayName ?? `User ${userId}`;
+                    const avatarURL   = target?.user?.displayAvatarURL({ dynamic: true });
+                    const inf         = infractions[idx];
+                    const { embed, components } = infractionCommand.buildCaseEmbed(inf, userId, displayName, avatarURL);
+                    embed.setFooter({ text: `Resolved by ${interaction.user.username}` });
+                    return interaction.update({ embeds: [embed], components });
                 }
 
-                if (infractions[idx].active === false) {
-                    return interaction.reply({ content: `\`${infId}\` is already resolved.`, flags: 64 });
+                // ── Back to list ───────────────────────────────────────────────
+                if (interaction.customId.startsWith('inf_back:')) {
+                    const userId      = interaction.customId.split(':')[1];
+                    const target      = await fetchTarget(userId);
+                    const displayName = target?.displayName ?? `User ${userId}`;
+                    const avatarURL   = target?.user?.displayAvatarURL({ dynamic: true });
+                    const infractions = client.settings.get(`user_infractions_${userId}`) || [];
+                    const { embed, components } = infractionCommand.buildListEmbed(userId, displayName, avatarURL, infractions);
+                    embed.setFooter({ text: `Opened by ${interaction.user.username}` });
+                    return interaction.update({ embeds: [embed], components });
                 }
 
-                infractions[idx].active      = false;
-                infractions[idx].resolvedBy  = interaction.user.id;
-                infractions[idx].resolvedAt  = Math.floor(Date.now() / 1000);
-                client.settings.set(`user_infractions_${userId}`, infractions);
+                // ── Edit (open modal) ──────────────────────────────────────────
+                if (interaction.customId.startsWith('inf_edit:')) {
+                    const parts  = interaction.customId.split(':');
+                    const infId  = parts[1];
+                    const userId = parts[2];
 
-                console.log(`[Infraction] ${infId} resolved by ${interaction.user.username}`);
+                    const infractions = client.settings.get(`user_infractions_${userId}`) || [];
+                    const inf = infractions.find(i => i.id === infId);
+                    if (!inf) return interaction.reply({ content: `Case \`${infId}\` not found.`, flags: 64 });
 
-                // Rebuild the manage embed with updated data
-                let targetMember;
-                try { targetMember = await interaction.guild.members.fetch(userId); } catch { /* not in guild */ }
+                    const modal = new ModalBuilder()
+                        .setCustomId(`inf_edit_modal:${infId}:${userId}`)
+                        .setTitle(`Edit Case ${infId}`);
 
-                const displayName = targetMember?.displayName || `<@${userId}>`;
-                const avatarURL   = targetMember?.user?.displayAvatarURL({ dynamic: true });
-                const { embed, components } = infractionCommand.buildManageEmbed(userId, displayName, avatarURL, infractions);
-                embed.setFooter({ text: `Managed by ${interaction.user.username} • ${infId} resolved` });
+                    modal.addComponents(
+                        new ActionRowBuilder().addComponents(
+                            new TextInputBuilder()
+                                .setCustomId('punishment')
+                                .setLabel('Punishment (Warning / Strike / Demotion / Termination / Other)')
+                                .setStyle(TextInputStyle.Short)
+                                .setRequired(true)
+                                .setValue(inf.punishment)
+                                .setMaxLength(20),
+                        ),
+                        new ActionRowBuilder().addComponents(
+                            new TextInputBuilder()
+                                .setCustomId('reason')
+                                .setLabel('Reason')
+                                .setStyle(TextInputStyle.Paragraph)
+                                .setRequired(true)
+                                .setValue((inf.reason || '').slice(0, 1000))
+                                .setMaxLength(1000),
+                        ),
+                    );
 
-                return interaction.update({ embeds: [embed], components });
+                    return interaction.showModal(modal);
+                }
             }
 
             // Hardcode controls
@@ -352,6 +402,33 @@ module.exports = {
 
         // ── Select menu interactions ───────────────────────────────────────────
         if (interaction.isStringSelectMenu()) {
+            // ── Infraction case select ─────────────────────────────────────────
+            if (interaction.customId.startsWith('inf_select:')) {
+                const { PermissionFlagsBits } = require('discord.js');
+                const MANAGE_ROLE_ID = infractionCommand.MANAGE_ROLE_ID;
+                const hasRole = interaction.member?.roles?.cache?.has(MANAGE_ROLE_ID);
+                const isAdmin = interaction.member?.permissions?.has(PermissionFlagsBits.Administrator);
+                if (!hasRole && !isAdmin) {
+                    return interaction.reply({ content: 'You do not have permission to use infraction controls.', flags: 64 });
+                }
+
+                const userId      = interaction.customId.split(':')[1];
+                const selectedId  = interaction.values[0];
+                const infractions = client.settings.get(`user_infractions_${userId}`) || [];
+                const inf         = infractions.find(i => i.id === selectedId);
+
+                if (!inf) return interaction.reply({ content: `Case \`${selectedId}\` not found.`, flags: 64 });
+
+                let target;
+                try { target = await interaction.guild.members.fetch(userId); } catch { /* ok */ }
+                const displayName = target?.displayName ?? `User ${userId}`;
+                const avatarURL   = target?.user?.displayAvatarURL({ dynamic: true });
+
+                const { embed, components } = infractionCommand.buildCaseEmbed(inf, userId, displayName, avatarURL);
+                embed.setFooter({ text: `Opened by ${interaction.user.username}` });
+                return interaction.update({ embeds: [embed], components });
+            }
+
             // Hardcode select menus
             if (isHardcodeComponent(interaction)) {
                 const parsed = parseHardcodeId(interaction.customId);
@@ -400,6 +477,54 @@ module.exports = {
         }
 
         // ── Modal submit interactions ──────────────────────────────────────────
+        // ── Infraction edit modal ──────────────────────────────────────────────
+        if (interaction.isModalSubmit() && interaction.customId.startsWith('inf_edit_modal:')) {
+            const { PermissionFlagsBits } = require('discord.js');
+            const MANAGE_ROLE_ID = infractionCommand.MANAGE_ROLE_ID;
+            const hasRole = interaction.member?.roles?.cache?.has(MANAGE_ROLE_ID);
+            const isAdmin = interaction.member?.permissions?.has(PermissionFlagsBits.Administrator);
+            if (!hasRole && !isAdmin) {
+                return interaction.reply({ content: 'You do not have permission to edit infractions.', flags: 64 });
+            }
+
+            const parts      = interaction.customId.split(':');
+            const infId      = parts[1];
+            const userId     = parts[2];
+            const infractions = client.settings.get(`user_infractions_${userId}`) || [];
+            const idx         = infractions.findIndex(i => i.id === infId);
+
+            if (idx === -1) return interaction.reply({ content: `Case \`${infId}\` not found.`, flags: 64 });
+
+            const VALID_PUNISHMENTS = ['Warning', 'Strike', 'Demotion', 'Termination', 'Other'];
+            const rawPunishment = interaction.fields.getTextInputValue('punishment').trim();
+            const newPunishment = VALID_PUNISHMENTS.find(p => p.toLowerCase() === rawPunishment.toLowerCase());
+
+            if (!newPunishment) {
+                return interaction.reply({
+                    content: `Invalid punishment type. Must be one of: ${VALID_PUNISHMENTS.join(', ')}`,
+                    flags: 64,
+                });
+            }
+
+            const newReason = interaction.fields.getTextInputValue('reason').trim();
+            infractions[idx].punishment = newPunishment;
+            infractions[idx].reason     = newReason;
+            infractions[idx].editedBy   = interaction.user.id;
+            infractions[idx].editedAt   = Math.floor(Date.now() / 1000);
+            client.settings.set(`user_infractions_${userId}`, infractions);
+            console.log(`[Infraction] ${infId} edited by ${interaction.user.username} — ${newPunishment}`);
+
+            let target;
+            try { target = await interaction.guild.members.fetch(userId); } catch { /* ok */ }
+            const displayName = target?.displayName ?? `User ${userId}`;
+            const avatarURL   = target?.user?.displayAvatarURL({ dynamic: true });
+            const inf         = infractions[idx];
+            const { embed, components } = infractionCommand.buildCaseEmbed(inf, userId, displayName, avatarURL);
+            embed.setFooter({ text: `Edited by ${interaction.user.username}` });
+
+            return interaction.update({ embeds: [embed], components });
+        }
+
         if (interaction.isModalSubmit() && isHardcodeComponent(interaction)) {
             const parsed = parseHardcodeId(interaction.customId);
             if (!(await ensureActor(interaction, parsed.actorId))) return;
