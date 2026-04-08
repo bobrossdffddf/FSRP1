@@ -57,21 +57,28 @@ async function sendGitReply(channel, ok, title, body) {
 
 // ── Jail helpers ──────────────────────────────────────────────────────────────
 
-async function jailLoop(username) {
+async function jailLoop(searchTerm) {
     try {
         const players = await getPlayers();
-        const inGame = Array.isArray(players) &&
-            players.some(p => getPlayerName(p.Player).toLowerCase() === username.toLowerCase());
+        if (!Array.isArray(players)) return;
 
-        if (!inGame) {
-            console.log(`[ToggleJail] ${username} is not in-game — skipping jail tick.`);
+        // Cross-reference the player list — match by partial, case-insensitive username
+        const match = players.find(p => {
+            const name = getPlayerName(p.Player).toLowerCase();
+            return name === searchTerm.toLowerCase() || name.includes(searchTerm.toLowerCase());
+        });
+
+        if (!match) {
+            console.log(`[ToggleJail] No in-game player matching "${searchTerm}" — skipping tick.`);
             return;
         }
 
-        await runCommand(`:jail ${username}`);
-        console.log(`[ToggleJail] Jailed ${username}`);
+        // Use the exact username from the API
+        const exactUsername = getPlayerName(match.Player);
+        await runCommand(`:jail ${exactUsername}`);
+        console.log(`[ToggleJail] Jailed ${exactUsername} (searched: "${searchTerm}")`);
     } catch (e) {
-        console.error(`[ToggleJail] Error jailing ${username}:`, e.message);
+        console.error(`[ToggleJail] Error jailing "${searchTerm}":`, e.message);
     }
 }
 
