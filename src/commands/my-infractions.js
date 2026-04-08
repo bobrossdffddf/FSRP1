@@ -4,9 +4,10 @@ const {
     PermissionFlagsBits,
 } = require('discord.js');
 
-const HR_ROLE_ID = '1487127238058180810';
-const LOGO_URL   = 'https://i.postimg.cc/T1K1HQCs/FSR-logo-with-tropical-scene.webp';
-const FOOTER_URL = 'https://i.postimg.cc/ZRqRj6bf/Untitled-design-(18).webp';
+const MANAGE_ROLE_ID = '1487127238028824690';
+const HR_ROLE_ID     = '1487127238058180810';
+const LOGO_URL       = 'https://i.postimg.cc/T1K1HQCs/FSR-logo-with-tropical-scene.webp';
+const FOOTER_URL     = 'https://i.postimg.cc/ZRqRj6bf/Untitled-design-(18).webp';
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -21,7 +22,8 @@ module.exports = {
     async execute(interaction, client) {
         await interaction.deferReply({ flags: 64 });
 
-        const isHR    = interaction.member?.roles?.cache?.has(HR_ROLE_ID);
+        const isHR    = interaction.member?.roles?.cache?.has(HR_ROLE_ID) ||
+                        interaction.member?.roles?.cache?.has(MANAGE_ROLE_ID);
         const isAdmin = interaction.member?.permissions?.has(PermissionFlagsBits.Administrator);
 
         const targetOption = interaction.options.getMember('member');
@@ -35,12 +37,10 @@ module.exports = {
         const displayName = target?.displayName ?? target?.user?.username ?? 'Unknown';
         const avatarURL   = (target?.user ?? target)?.displayAvatarURL?.({ dynamic: true });
 
-        if (!userId) {
-            return interaction.editReply({ content: 'Could not resolve that member.' });
-        }
+        if (!userId) return interaction.editReply({ content: 'Could not resolve that member.' });
 
         const infractions = client.settings.get(`user_infractions_${userId}`) || [];
-        const active = infractions.filter(i => i.active !== false);
+        const active      = infractions.filter(i => i.active !== false);
 
         const activeWarnings = active.filter(i => i.punishment === 'Warning').length;
         const activeStrikes  = active.filter(i => i.punishment === 'Strike').length;
@@ -67,7 +67,7 @@ module.exports = {
             const recent = [...infractions].reverse().slice(0, 5);
             const lines = recent.map(inf => {
                 const when   = inf.timestamp ? `<t:${inf.timestamp}:d>` : 'Unknown';
-                const status = inf.active !== false ? '🔴' : '✅';
+                const status = inf.active !== false ? '`ACTIVE`' : '`RESOLVED`';
                 const reason = (inf.reason || 'No reason').slice(0, 60);
                 return `${status} \`${inf.id}\` **${inf.punishment}** — ${when}\n> ${reason}`;
             }).join('\n');

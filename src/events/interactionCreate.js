@@ -4,7 +4,7 @@ const { getMainGuildId } = require('../utils/guildConfig');
 const OWNER_ID = '848356730256883744';
 const REQUIRED_ROLE_ID = '1488210128187560169';
 const OWNER_ONLY_COMMANDS = ['git'];
-const SELF_PERMISSIONED_COMMANDS = ['setup', 'infraction', 'promote', 'staffrequest', 'stafflogs'];
+const SELF_PERMISSIONED_COMMANDS = ['setup', 'infraction', 'promote', 'staffrequest', 'statlookup', 'my-infractions'];
 
 const log = (level, command, message) => {
     const timestamp = new Date().toISOString();

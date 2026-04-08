@@ -11,6 +11,7 @@ const {
 
 const hardcodeCommand = require('../commands/hardcode');
 const staffRequestCommand = require('../commands/staffrequest');
+const infractionCommand = require('../commands/infraction');
 const {
     handlePriorityRequestButton,
     handlePriorityApprove,
@@ -71,6 +72,48 @@ module.exports = {
     async execute(interaction, client) {
         // ── Button interactions ────────────────────────────────────────────────
         if (interaction.isButton()) {
+            // ── Infraction resolve button ──────────────────────────────────────
+            if (interaction.customId.startsWith('inf_resolve:')) {
+                const MANAGE_ROLE_ID = infractionCommand.MANAGE_ROLE_ID;
+                const hasRole = interaction.member?.roles?.cache?.has(MANAGE_ROLE_ID);
+                const isAdmin = interaction.member?.permissions?.has(require('discord.js').PermissionFlagsBits.Administrator);
+
+                if (!hasRole && !isAdmin) {
+                    return interaction.reply({ content: 'You do not have permission to resolve infractions.', flags: 64 });
+                }
+
+                const [, infId, userId] = interaction.customId.split(':');
+
+                const infractions = client.settings.get(`user_infractions_${userId}`) || [];
+                const idx = infractions.findIndex(i => i.id === infId);
+
+                if (idx === -1) {
+                    return interaction.reply({ content: `Infraction \`${infId}\` not found.`, flags: 64 });
+                }
+
+                if (infractions[idx].active === false) {
+                    return interaction.reply({ content: `\`${infId}\` is already resolved.`, flags: 64 });
+                }
+
+                infractions[idx].active      = false;
+                infractions[idx].resolvedBy  = interaction.user.id;
+                infractions[idx].resolvedAt  = Math.floor(Date.now() / 1000);
+                client.settings.set(`user_infractions_${userId}`, infractions);
+
+                console.log(`[Infraction] ${infId} resolved by ${interaction.user.username}`);
+
+                // Rebuild the manage embed with updated data
+                let targetMember;
+                try { targetMember = await interaction.guild.members.fetch(userId); } catch { /* not in guild */ }
+
+                const displayName = targetMember?.displayName || `<@${userId}>`;
+                const avatarURL   = targetMember?.user?.displayAvatarURL({ dynamic: true });
+                const { embed, components } = infractionCommand.buildManageEmbed(userId, displayName, avatarURL, infractions);
+                embed.setFooter({ text: `Managed by ${interaction.user.username} • ${infId} resolved` });
+
+                return interaction.update({ embeds: [embed], components });
+            }
+
             // Hardcode controls
             if (isHardcodeComponent(interaction)) {
                 const parsed = parseHardcodeId(interaction.customId);
