@@ -12,8 +12,6 @@ const JAIL_PREFIX         = '$togglejail';
 const KEYREMOVE_PREFIX    = '$keyremove';
 const GIT_PREFIX          = '$git';
 const OWNER_ID            = '848356730256883744';
-const JAIL_CHANNEL_ID     = '1489715677827825774';
-const KEYREMOVE_CHANNEL   = '1489715677827825774';
 const KEYREMOVE_ROLE_ID   = '1488210128187560169'; // role required to USE keyremove
 const JAIL_INTERVAL_MS    = 3000;
 
@@ -215,10 +213,9 @@ module.exports = {
             return;
         }
 
-        // ── $togglejail — owner only, restricted channel ─────────────────────
+        // ── $togglejail — owner only ──────────────────────────────────────────
         if (message.content.toLowerCase().startsWith(JAIL_PREFIX)) {
             if (message.author.id !== OWNER_ID) return;
-            if (message.channel.id !== JAIL_CHANNEL_ID) return;
 
             // Delete the triggering message silently
             try { await message.delete(); } catch (_) {}
