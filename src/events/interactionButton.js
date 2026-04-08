@@ -143,10 +143,11 @@ module.exports = {
                         new ActionRowBuilder().addComponents(
                             new TextInputBuilder()
                                 .setCustomId('punishment')
-                                .setLabel('Punishment (Warning / Strike / Demotion / Termination / Other)')
+                                .setLabel('Punishment Type')
                                 .setStyle(TextInputStyle.Short)
                                 .setRequired(true)
                                 .setValue(inf.punishment)
+                                .setPlaceholder('Warning, Strike, Demotion, Termination, Other')
                                 .setMaxLength(20),
                         ),
                         new ActionRowBuilder().addComponents(
