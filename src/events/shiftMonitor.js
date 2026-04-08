@@ -82,27 +82,47 @@ function findDiscordMember(guild, robloxUsername) {
 async function pollShiftChanges() {
     try {
         const resp = await getServerShifts(1, 50);
-        const shifts = resp?.data || [];
+
+        if (!resp) {
+            console.warn('[ShiftMonitor] Melonly getServerShifts returned null — API may be down or key invalid');
+            return;
+        }
+
+        // Log the raw response shape on first call to help debug field names
+        const shifts = resp?.data ?? (Array.isArray(resp) ? resp : []);
+        console.log(`[ShiftMonitor] Melonly shift poll: received ${shifts.length} shift records (total: ${resp?.total ?? '?'})`);
+
+        if (shifts.length > 0) {
+            // Log first shift object's keys once so we know the API shape
+            const sample = shifts[0];
+            console.log(`[ShiftMonitor] Shift field keys: ${Object.keys(sample).join(', ')}`);
+        }
 
         const currentActiveIds = new Set();
 
         for (const shift of shifts) {
-            if (shift.endedAt && shift.endedAt !== 0) continue; // already ended
+            // Try multiple possible field names for ended status
+            const endedAt = shift.endedAt ?? shift.ended_at ?? shift.endTime ?? null;
+            const isActive = !endedAt || endedAt === 0 || endedAt === null;
+            if (!isActive) continue;
 
-            const shiftId   = shift.id || shift._id;
-            const staffName = shift.member?.username || shift.member?.displayName || shift.memberId || 'Unknown';
-            const startedAt = shift.createdAt ? new Date(shift.createdAt * 1000).toLocaleTimeString() : 'unknown time';
+            // Extract shift ID and available identifiers
+            const shiftId   = shift.id ?? shift._id ?? shift.shiftId ?? null;
+            const memberId  = shift.memberId ?? shift.userId ?? null;
+            // Melonly shift objects only carry memberId, not a username — label it clearly
+            const staffLabel = memberId ? `MelonyID:${memberId}` : 'Unknown';
+            const createdAt  = shift.createdAt ?? shift.created_at ?? shift.startTime ?? shift.startedAt ?? null;
+            const startedAt  = createdAt ? new Date(createdAt * 1000).toLocaleTimeString() : 'unknown time';
 
             if (shiftId) currentActiveIds.add(shiftId);
 
-            // Newly detected active shift → log "on shift"
             if (shiftId && !knownActiveShiftIds.has(shiftId)) {
                 knownActiveShiftIds.add(shiftId);
-                console.log(`[ShiftMonitor] 🟢 ON SHIFT  — ${staffName} started a shift at ${startedAt} (ID: ${shiftId})`);
+                console.log(`[ShiftMonitor] 🟢 ON SHIFT  — ${staffLabel} | started at ${startedAt} (Shift ID: ${shiftId})`);
             }
         }
 
-        // Detect ended shifts (were active last poll, no longer active)
+        // Detect shifts that ended since last poll
         for (const id of knownActiveShiftIds) {
             if (!currentActiveIds.has(id)) {
                 knownActiveShiftIds.delete(id);
@@ -111,7 +131,7 @@ async function pollShiftChanges() {
         }
 
         if (currentActiveIds.size > 0) {
-            console.log(`[ShiftMonitor] Active shifts: ${currentActiveIds.size}`);
+            console.log(`[ShiftMonitor] Currently on shift: ${currentActiveIds.size} staff member(s)`);
         }
     } catch (e) {
         console.warn('[ShiftMonitor] pollShiftChanges error:', e.message);
@@ -402,9 +422,11 @@ module.exports = {
                 const guildId  = process.env.MAIN_GUILD_ID;
                 const settings = guildId ? (client.settings.get(guildId) || {}) : {};
 
+                // Shift tracking always runs — independent of session state
+                await pollShiftChanges();
+
                 if (settings.sessionActive) {
                     await pollModCalls();
-                    await pollShiftChanges();
 
                     const now = Date.now();
                     if (now - lastEvalTime >= EVAL_INTERVAL_MS) {

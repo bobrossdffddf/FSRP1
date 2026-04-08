@@ -5,16 +5,15 @@ const {
 } = require('discord.js');
 
 const HR_ROLE_ID = '1487127238058180810';
-
-const LOGO_URL = 'https://i.postimg.cc/T1K1HQCs/FSR-logo-with-tropical-scene.webp';
+const LOGO_URL   = 'https://i.postimg.cc/T1K1HQCs/FSR-logo-with-tropical-scene.webp';
 const FOOTER_URL = 'https://i.postimg.cc/ZRqRj6bf/Untitled-design-(18).webp';
 
 const PUNISHMENT_COLORS = {
-    Warning: '#FEE75C',
-    Strike: '#ED4245',
-    Demotion: '#FFA500',
+    Warning:     '#FEE75C',
+    Strike:      '#ED4245',
+    Demotion:    '#FFA500',
     Termination: '#8B0000',
-    Other: '#5865F2',
+    Other:       '#5865F2',
 };
 
 function getNextInfractionId(client) {
@@ -40,11 +39,11 @@ module.exports = {
                 .setDescription('Type of punishment.')
                 .setRequired(true)
                 .addChoices(
-                    { name: 'Warning', value: 'Warning' },
-                    { name: 'Strike', value: 'Strike' },
-                    { name: 'Demotion', value: 'Demotion' },
+                    { name: 'Warning',     value: 'Warning'     },
+                    { name: 'Strike',      value: 'Strike'      },
+                    { name: 'Demotion',    value: 'Demotion'    },
                     { name: 'Termination', value: 'Termination' },
-                    { name: 'Other', value: 'Other' },
+                    { name: 'Other',       value: 'Other'       },
                 ))
         .addStringOption(option =>
             option
@@ -54,7 +53,7 @@ module.exports = {
                 .setMaxLength(1000)),
 
     async execute(interaction, client) {
-        const isHR = interaction.member?.roles?.cache?.has(HR_ROLE_ID);
+        const isHR    = interaction.member?.roles?.cache?.has(HR_ROLE_ID);
         const isAdmin = interaction.member?.permissions?.has(PermissionFlagsBits.Administrator);
 
         if (!isHR && !isAdmin) {
@@ -66,16 +65,16 @@ module.exports = {
 
         await interaction.deferReply({ flags: 64 });
 
-        const member = interaction.options.getMember('member');
+        const member     = interaction.options.getMember('member');
         const punishment = interaction.options.getString('punishment');
-        const reason = interaction.options.getString('reason');
+        const reason     = interaction.options.getString('reason');
 
         if (!member) {
             return interaction.editReply({ content: 'That user was not found in this server.' });
         }
 
         const infractionId = getNextInfractionId(client);
-        const color = PUNISHMENT_COLORS[punishment] || '#ED4245';
+        const color        = PUNISHMENT_COLORS[punishment] || '#ED4245';
 
         const guildSettings = client.settings.get(interaction.guild.id) || {};
         const targetChannel = guildSettings.infractionChannelId
@@ -87,40 +86,59 @@ module.exports = {
         }
 
         const embed = new EmbedBuilder()
-            .setTitle('Staff Infraction')
             .setColor(color)
+            .setAuthor({
+                name: member.user.username,
+                iconURL: member.user.displayAvatarURL({ dynamic: true }),
+            })
             .setThumbnail(LOGO_URL)
+            .setTitle('<:warning:1489218432850464768>  Staff Infraction')
             .addFields(
-                { name: '<:staff:1491568422205526118> Staff Member', value: `${member}`, inline: false },
-                { name: '<:warning:1489218432850464768> Punishment', value: `\`${punishment}\``, inline: false },
-                { name: '\u200b', value: '\u200b', inline: false },
-                { name: '<:pin:1491123495810367651> Reason', value: `\`\`\`${reason}\`\`\``, inline: false },
+                {
+                    name: '<:staff:1491568422205526118>  Staff Member',
+                    value: `${member} — \`${member.user.username}\``,
+                    inline: false,
+                },
+                {
+                    name: '<:warning:1489218432850464768>  Punishment',
+                    value: `\`${punishment}\``,
+                    inline: true,
+                },
+                {
+                    name: '<:pin:1491123495810367651>  Case ID',
+                    value: `\`${infractionId}\``,
+                    inline: true,
+                },
+                {
+                    name: '📋  Reason',
+                    value: `\`\`\`${reason}\`\`\``,
+                    inline: false,
+                },
                 {
                     name: '\u200b',
-                    value: `This punishment is not subject to change. <@&${HR_ROLE_ID}> will read your concern in a ticket.`,
+                    value: `> This punishment is not subject to change. <@&${HR_ROLE_ID}> will review any concerns raised in a ticket.`,
                     inline: false,
                 },
             )
             .setImage(FOOTER_URL)
-            .setFooter({
-                text: `${member.user.username} • Punishment ID: ${infractionId}`,
-                iconURL: member.user.displayAvatarURL({ dynamic: true }),
-            })
+            .setFooter({ text: `Issued by ${interaction.user.username} • ${infractionId}` })
             .setTimestamp();
 
         try {
             await targetChannel.send({ content: `${member}`, embeds: [embed] });
-            await interaction.editReply({ content: `Infraction issued to ${member.user.username} — **${infractionId}**` });
+            await interaction.editReply({
+                content: `Infraction issued to **${member.user.username}** — \`${infractionId}\``,
+            });
 
-            // Persist infraction record per user for /my-infractions
+            // Persist per-user for /my-infractions
             const userInfractions = client.settings.get(`user_infractions_${member.id}`) || [];
             userInfractions.push({
-                id: infractionId,
+                id:        infractionId,
                 punishment,
                 reason,
-                issuedBy: interaction.user.id,
+                issuedBy:  interaction.user.id,
                 timestamp: Math.floor(Date.now() / 1000),
-                active: true,
+                active:    true,
             });
             client.settings.set(`user_infractions_${member.id}`, userInfractions);
             console.log(`[Infraction] Stored ${infractionId} for user ${member.id} (${member.user.username})`);

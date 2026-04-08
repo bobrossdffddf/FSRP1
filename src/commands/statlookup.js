@@ -5,11 +5,11 @@ const {
 } = require('discord.js');
 const { getMemberByDiscordId, getLogsForStaff, getShiftsForMember, getAuditLogs } = require('../api/melonly');
 
-const HR_ROLE_ID  = '1487127238058180810';
-const LOGO_URL    = 'https://i.postimg.cc/T1K1HQCs/FSR-logo-with-tropical-scene.webp';
-const FOOTER_URL  = 'https://i.postimg.cc/ZRqRj6bf/Untitled-design-(18).webp';
+const HR_ROLE_ID = '1487127238058180810';
+const LOGO_URL   = 'https://i.postimg.cc/T1K1HQCs/FSR-logo-with-tropical-scene.webp';
+const FOOTER_URL = 'https://i.postimg.cc/ZRqRj6bf/Untitled-design-(18).webp';
 
-const LOG_TYPES = {
+const LOG_TYPE_LABELS = {
     1: 'Warning',
     2: 'Strike',
     3: 'Demotion',
@@ -20,20 +20,17 @@ const LOG_TYPES = {
     8: 'BOLO',
 };
 
-function formatTs(ts) {
-    if (!ts) return 'Unknown';
-    return `<t:${ts}:f>`;
+function fmtTs(ts) {
+    return ts ? `<t:${ts}:d>` : '?';
 }
 
-function formatDuration(startTs, endTs) {
+function fmtDuration(startTs, endTs) {
     if (!startTs) return 'Unknown';
-    if (!endTs) return '🟢 Ongoing';
-    const ms       = (endTs - startTs) * 1000;
-    const totalMin = Math.floor(ms / 60000);
-    const hours    = Math.floor(totalMin / 60);
-    const mins     = totalMin % 60;
-    if (hours > 0) return `${hours}h ${mins}m`;
-    return `${mins}m`;
+    if (!endTs || endTs === 0) return '🟢 Ongoing';
+    const totalMin = Math.floor(((endTs - startTs) * 1000) / 60000);
+    const h = Math.floor(totalMin / 60);
+    const m = totalMin % 60;
+    return h > 0 ? `${h}h ${m}m` : `${m}m`;
 }
 
 module.exports = {
@@ -42,8 +39,7 @@ module.exports = {
         .setDescription('Look up detailed staff stats, shifts, logs and recent commands for a member.')
         .setDefaultMemberPermissions(0n)
         .addUserOption(opt =>
-            opt
-                .setName('member')
+            opt.setName('member')
                 .setDescription('The Discord member to look up.')
                 .setRequired(true)),
 
@@ -52,25 +48,21 @@ module.exports = {
         const isAdmin = interaction.member?.permissions?.has(PermissionFlagsBits.Administrator);
 
         if (!isHR && !isAdmin) {
-            return interaction.reply({
-                content: 'You do not have permission to use this command. (HR role required)',
-                flags: 64,
-            });
+            return interaction.reply({ content: 'You do not have permission to use this command. (HR role required)', flags: 64 });
         }
 
         await interaction.deferReply({ flags: 64 });
 
-        const target      = interaction.options.getMember('member') || interaction.options.getUser('member');
-        const discordId   = target?.id || target?.user?.id;
-        const displayName = target?.displayName || target?.user?.username || 'Unknown';
-        const avatarURL   = (target?.user || target)?.displayAvatarURL?.({ dynamic: true });
+        const target      = interaction.options.getMember('member') ?? interaction.options.getUser('member');
+        const discordId   = target?.id ?? target?.user?.id;
+        const displayName = target?.displayName ?? target?.user?.username ?? 'Unknown';
+        const avatarURL   = (target?.user ?? target)?.displayAvatarURL?.({ dynamic: true });
 
         if (!discordId) {
             return interaction.editReply({ content: 'Could not resolve that member.' });
         }
 
         const melonlyMember = await getMemberByDiscordId(discordId);
-
         if (!melonlyMember) {
             return interaction.editReply({
                 content: `**${displayName}** was not found in the Melonly system. They may not be registered.`,
@@ -88,92 +80,95 @@ module.exports = {
         const logs   = logsResp?.data   || [];
         const shifts = shiftsResp?.data || [];
 
-        // Filter audit logs to only show entries for this staff member
-        const allAuditEntries = auditResp?.data || [];
-        const memberAudit = allAuditEntries.filter(entry => {
-            const entryMember = entry.memberId || entry.member?.id || entry.executorId;
-            return entryMember === melonlyId || entryMember === discordId;
+        const allAudit   = auditResp?.data || [];
+        const myAudit    = allAudit.filter(e => {
+            const eid = e.memberId || e.member?.id || e.executorId || e.staffId;
+            return eid === melonlyId || eid === discordId;
         });
 
+        // ── Build embed ────────────────────────────────────────────────────────
         const embed = new EmbedBuilder()
             .setColor('#5865F2')
-            .setThumbnail(LOGO_URL)
             .setAuthor({ name: displayName, iconURL: avatarURL })
-            .setTitle(`<:staff:1491568422205526118> Staff Lookup — ${displayName}`);
+            .setThumbnail(LOGO_URL)
+            .setTitle(`<:staff:1491568422205526118>  Staff Lookup — ${displayName}`);
 
-        // Overview
+        // Profile
+        const roles = melonlyMember.roles?.length > 0
+            ? melonlyMember.roles.slice(0, 4).map(r => `\`${r}\``).join(', ')
+            : '`None`';
+
         embed.addFields({
-            name: '<:pin:1491123495810367651> Melonly Profile',
+            name: '<:pin:1491123495810367651>  Profile',
             value: [
-                `**ID:** \`${melonlyId}\``,
-                `**Registered:** ${melonlyMember.createdAt ? formatTs(melonlyMember.createdAt) : 'Unknown'}`,
-                `**Roles:** ${melonlyMember.roles?.length > 0 ? melonlyMember.roles.slice(0, 4).join(', ') : 'None'}`,
+                `**Melonly ID:** \`${melonlyId}\``,
+                `**Registered:** ${melonlyMember.createdAt ? `<t:${melonlyMember.createdAt}:D>` : 'Unknown'}`,
+                `**Roles:** ${roles}`,
             ].join('\n'),
             inline: false,
         });
 
-        // Recent logs (infractions/notes/etc.)
+        // Recent logs
         if (logs.length > 0) {
-            const logLines = logs.slice(0, 5).map(log => {
-                const type = LOG_TYPES[log.type] || `Type ${log.type}`;
-                const date = log.createdAt ? `<t:${log.createdAt}:d>` : '?';
-                const text = (log.text || log.description || 'No description').slice(0, 80);
-                return `\`${type}\` — ${date}\n> \`${text}\``;
+            const lines = logs.slice(0, 5).map(log => {
+                const type   = LOG_TYPE_LABELS[log.type] ?? `Type ${log.type}`;
+                const date   = fmtTs(log.createdAt);
+                const text   = (log.text || log.description || 'No description').slice(0, 70);
+                return `\`${type}\` ${date}\n> \`\`\`${text}\`\`\``;
             }).join('\n');
 
             embed.addFields({
-                name: `<:warning:1489218432850464768> Recent Logs (${logsResp?.total ?? logs.length} total)`,
-                value: logLines.slice(0, 1024),
+                name: `<:warning:1489218432850464768>  Logs (${logsResp?.total ?? logs.length} total)`,
+                value: lines.slice(0, 1024),
                 inline: false,
             });
         } else {
             embed.addFields({
-                name: '<:warning:1489218432850464768> Recent Logs',
+                name: '<:warning:1489218432850464768>  Logs',
                 value: '```No logs found.```',
                 inline: false,
             });
         }
 
-        // Recent shifts
+        // Shifts
         if (shifts.length > 0) {
-            const totalShifts = shiftsResp?.total ?? shifts.length;
-            const shiftLines = shifts.slice(0, 5).map(shift => {
-                const start    = shift.createdAt ? `<t:${shift.createdAt}:d>` : '?';
-                const duration = formatDuration(shift.createdAt, shift.endedAt);
-                const type     = shift.type || 'Standard';
-                return `\`${type}\` — ${start} — ${duration}`;
+            const lines = shifts.slice(0, 5).map((s, i) => {
+                const type     = s.type || 'Standard';
+                const date     = fmtTs(s.createdAt);
+                const duration = fmtDuration(s.createdAt, s.endedAt);
+                return `\`${String(i + 1).padStart(2, '0')}\` **${type}** — ${date} — \`${duration}\``;
             }).join('\n');
 
             embed.addFields({
-                name: `🕐 Recent Shifts (${totalShifts} total)`,
-                value: shiftLines.slice(0, 1024),
+                name: `🕐  Shifts (${shiftsResp?.total ?? shifts.length} total)`,
+                value: lines.slice(0, 1024),
                 inline: false,
             });
         } else {
             embed.addFields({
-                name: '🕐 Recent Shifts',
+                name: '🕐  Shifts',
                 value: '```No shifts found.```',
                 inline: false,
             });
         }
 
-        // Recent commands (audit log)
-        if (memberAudit.length > 0) {
-            const cmdLines = memberAudit.slice(0, 5).map(entry => {
-                const action = entry.action || entry.type || 'Unknown action';
-                const date   = entry.createdAt ? `<t:${entry.createdAt}:d>` : '?';
-                const target = entry.targetName || entry.target || '';
-                return `\`${action}\`${target ? ` → \`${target}\`` : ''} — ${date}`;
+        // Recent commands from audit log
+        if (myAudit.length > 0) {
+            const lines = myAudit.slice(0, 5).map(e => {
+                const action = e.action || e.type || 'Unknown';
+                const date   = fmtTs(e.createdAt);
+                const tgt    = e.targetName || e.target || '';
+                return `\`${action}\`${tgt ? ` → \`${tgt}\`` : ''} ${date}`;
             }).join('\n');
 
             embed.addFields({
-                name: `<:staff:1491568514216235179> Recent Commands (${memberAudit.length} shown)`,
-                value: cmdLines.slice(0, 1024),
+                name: `<:staff:1491568514216235179>  Recent Commands (${myAudit.length} found)`,
+                value: lines.slice(0, 1024),
                 inline: false,
             });
         } else {
             embed.addFields({
-                name: '<:staff:1491568514216235179> Recent Commands',
+                name: '<:staff:1491568514216235179>  Recent Commands',
                 value: '```No recent commands found in audit log.```',
                 inline: false,
             });
@@ -181,7 +176,7 @@ module.exports = {
 
         embed
             .setImage(FOOTER_URL)
-            .setFooter({ text: `Requested by ${interaction.user.username} • FSRP Staff Records` })
+            .setFooter({ text: `Requested by ${interaction.user.username} • FSRP` })
             .setTimestamp();
 
         await interaction.editReply({ embeds: [embed] });
