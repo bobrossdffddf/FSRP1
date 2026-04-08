@@ -37,10 +37,16 @@ const rest = new REST().setToken(process.env.TOKEN);
         for (const guildId of targetGuilds) {
             console.log(`Deploying ${allCommandsJson.length} commands to guild ${guildId}: ${allCommandsJson.map(c => c.name).join(', ')}`);
 
-            const deployed = await rest.put(
-                Routes.applicationGuildCommands(process.env.CLIENT_ID, guildId),
-                { body: allCommandsJson }
-            );
+            let deployed;
+            try {
+                deployed = await rest.put(
+                    Routes.applicationGuildCommands(process.env.CLIENT_ID, guildId),
+                    { body: allCommandsJson }
+                );
+            } catch (deployErr) {
+                console.warn(`Skipping guild ${guildId} — could not deploy: ${deployErr.message}`);
+                continue;
+            }
 
             console.log(`Done: guild ${guildId} — ${deployed.length} commands deployed`);
 
