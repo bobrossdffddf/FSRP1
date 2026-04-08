@@ -51,7 +51,6 @@ const rest = new REST().setToken(process.env.TOKEN);
             console.log(`Done: guild ${guildId} — ${deployed.length} commands deployed`);
 
             // Set role-based permissions: allow role 1488210128187560169 to see all commands
-            // and keep admin access on setup/git
             try {
                 const STAFF_ROLE_ID = '1488210128187560169';
 
