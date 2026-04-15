@@ -9,6 +9,7 @@ const path = require('path');
 
 const ASSETS_DIR = path.join(__dirname, '../../assets');
 const PORT       = 3000;
+const VERSION    = Date.now(); // changes each restart, busts Discord's image cache
 
 const MIME = {
     '.png':  'image/png',
@@ -61,11 +62,12 @@ function startAssetServer() {
 
 /**
  * Returns the public HTTPS URL for an asset, or null if no domain is available.
+ * The ?v= parameter busts Discord's image cache on every bot restart.
  */
 function getAssetUrl(filename) {
     const domain = process.env.REPLIT_DEV_DOMAIN;
     if (!domain) return null;
-    return `https://${domain}/${filename}`;
+    return `https://${domain}/${filename}?v=${VERSION}`;
 }
 
 module.exports = { startAssetServer, getAssetUrl };
