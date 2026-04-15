@@ -44,7 +44,7 @@ module.exports = {
             await interaction.channel.setName(newName, `Renamed by ${interaction.user.username}`);
 
             const embed = new EmbedBuilder()
-                .setTitle('✏️ Ticket Renamed')
+                .setTitle('Ticket Renamed')
                 .setColor(0x57F287)
                 .setDescription(`This ticket channel has been renamed by ${interaction.user}.`)
                 .addFields(
@@ -52,7 +52,7 @@ module.exports = {
                     { name: 'New Name', value: `\`${newName}\``, inline: true },
                 )
                 .setTimestamp()
-                .setFooter({ text: 'Ticket System' });
+                .setFooter({ text: 'Florida State Roleplay' });
 
             await interaction.channel.send({ embeds: [embed] });
             await interaction.editReply({ content: `Channel renamed to \`${newName}\`.` });

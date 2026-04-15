@@ -82,7 +82,7 @@ module.exports = {
             });
 
             const embed = new EmbedBuilder()
-                .setTitle('⬆️ Ticket Escalated')
+                .setTitle('Ticket Escalated')
                 .setColor(0xFEE75C)
                 .setDescription(`This ticket has been escalated to **${level}** by ${interaction.user}.`)
                 .addFields(
@@ -90,7 +90,7 @@ module.exports = {
                     { name: 'Escalation Level', value: level, inline: true },
                 )
                 .setTimestamp()
-                .setFooter({ text: 'Ticket System' });
+                .setFooter({ text: 'Florida State Roleplay' });
 
             await interaction.channel.send({ embeds: [embed] });
             await interaction.editReply({ content: `Ticket successfully escalated to **${level}**.` });

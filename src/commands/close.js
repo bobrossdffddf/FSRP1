@@ -47,7 +47,7 @@ module.exports = {
             const reason = interaction.options.getString('reason');
 
             const requestEmbed = new EmbedBuilder()
-                .setTitle('🔒 Close Request')
+                .setTitle('Close Request')
                 .setColor(0xED4245)
                 .setDescription(`The staff member handling your ticket has requested to close it.`)
                 .addFields(

@@ -141,7 +141,7 @@ module.exports = {
                 const unclaimedRow = buildStaffRow(channelId);
                 const embed = new EmbedBuilder()
                     .setColor(0xFEE75C)
-                    .setDescription(`↩️  ${interaction.user} has unclaimed this ticket. Another staff member can now claim it.`);
+                    .setDescription(`${interaction.user} has unclaimed this ticket. Another staff member can now claim it.`);
 
                 await interaction.update({ components: [unclaimedRow] });
                 await interaction.channel.send({ embeds: [embed] });
@@ -168,7 +168,7 @@ module.exports = {
 
                 const closingEmbed = new EmbedBuilder()
                     .setColor(0xED4245)
-                    .setDescription(`🔒  This ticket is being closed by ${interaction.user}. Generating transcript...`);
+                    .setDescription(`This ticket is being closed by ${interaction.user}. Generating transcript...`);
 
                 await interaction.channel.send({ embeds: [closingEmbed] }).catch(() => {});
                 await closeTicket(interaction.channel, ticket, interaction.user, client);
@@ -195,7 +195,7 @@ module.exports = {
 
                 const closingEmbed = new EmbedBuilder()
                     .setColor(0xED4245)
-                    .setDescription(`🔒  Close request accepted. Generating transcript...`);
+                    .setDescription(`Close request accepted. Generating transcript...`);
                 await interaction.channel.send({ embeds: [closingEmbed] }).catch(() => {});
 
                 await closeTicket(interaction.channel, ticket, interaction.user, client);
@@ -218,7 +218,7 @@ module.exports = {
 
                 await interaction.update({ components: [disabledRow] });
                 await interaction.channel.send({
-                    embeds: [new EmbedBuilder().setColor(0xFEE75C).setDescription(`❌  Close request declined by ${interaction.user}.`)]
+                    embeds: [new EmbedBuilder().setColor(0xFEE75C).setDescription(`Close request declined by ${interaction.user}.`)]
                 });
                 return;
             }
