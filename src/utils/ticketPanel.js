@@ -67,11 +67,6 @@ function buildTicketPanelContainer() {
                             .setDescription('Submit a formal report regarding a staff member or player')
                             .setValue('staff_report')
                             .setEmoji({ id: '1489218432850464768', name: 'warning' }),
-                        new StringSelectMenuOptionBuilder()
-                            .setLabel('Internal Affairs')
-                            .setDescription('Submit a confidential Internal Affairs report')
-                            .setValue('internal_affairs')
-                            .setEmoji({ id: '1491568422205526118', name: 'staff' }),
                     )
             )
         );

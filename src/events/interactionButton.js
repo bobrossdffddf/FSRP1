@@ -589,23 +589,6 @@ module.exports = {
                                 .setPlaceholder('Briefly describe your issue or question...')
                         )
                     );
-                } else if (selected === 'internal_affairs') {
-                    modal = new ModalBuilder()
-                        .setCustomId('ia_ticket_modal')
-                        .setTitle('Internal Affairs Submission');
-
-                    modal.addComponents(
-                        new ActionRowBuilder().addComponents(
-                            new TextInputBuilder()
-                                .setCustomId('ia_reason')
-                                .setLabel('What is this IA report regarding?')
-                                .setStyle(TextInputStyle.Paragraph)
-                                .setRequired(true)
-                                .setMinLength(10)
-                                .setMaxLength(500)
-                                .setPlaceholder('Briefly describe the nature of your Internal Affairs report...')
-                        )
-                    );
                 } else if (selected === 'staff_report') {
                     modal = new ModalBuilder()
                         .setCustomId('staff_report_modal')

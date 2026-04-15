@@ -119,24 +119,6 @@ module.exports = {
                     });
                 }
 
-                if (interaction.customId === 'ia_ticket_modal') {
-                    const { createIATicket } = require('./ticketActions');
-                    const reason = interaction.fields.getTextInputValue('ia_reason');
-
-                    await interaction.deferReply({ flags: 64 });
-
-                    const ticketChannel = await createIATicket(interaction, client, reason);
-                    if (!ticketChannel) {
-                        return interaction.editReply({
-                            content: 'Failed to create your IA ticket. Please make sure the bot has permission to manage channels and try again.',
-                        });
-                    }
-
-                    return interaction.editReply({
-                        content: `Your Internal Affairs ticket has been opened in ${ticketChannel}. Our team will review it shortly.`,
-                    });
-                }
-
                 if (interaction.customId === 'staff_report_modal') {
                     const { createStaffReportTicket } = require('./ticketActions');
 
