@@ -38,21 +38,32 @@ module.exports = {
             return interaction.reply({ content: 'This command can only be used inside a ticket channel.', flags: 64 });
         }
 
-        if (ticket.claimedBy !== interaction.user.id) {
-            return interaction.reply({ content: 'Only the staff member who claimed this ticket can use this command.', flags: 64 });
+        const isClaimer  = ticket.claimedBy === interaction.user.id;
+        const isCreator  = ticket.creatorId === interaction.user.id;
+
+        if (!isClaimer && !isCreator) {
+            return interaction.reply({ content: 'Only the staff member who claimed this ticket or the ticket creator can use this command.', flags: 64 });
         }
 
         // ── /close request ──────────────────────────────────────────────────────
         if (sub === 'request') {
+            if (!isClaimer) {
+                return interaction.reply({ content: 'Only the staff member who claimed this ticket can send a close request.', flags: 64 });
+            }
+
             const reason = interaction.options.getString('reason');
 
             const requestEmbed = new EmbedBuilder()
-                .setTitle('Close Request')
+                .setTitle('📋 Close Request')
                 .setColor(0xED4245)
-                .setDescription(`The staff member handling your ticket has requested to close it.`)
+                .setDescription(
+                    `<@${ticket.creatorId}>, the staff member handling your ticket has requested to close it.\n` +
+                    `Please review the reason below and accept or decline.`
+                )
                 .addFields(
                     { name: 'Reason', value: reason, inline: false },
-                    { name: 'Requested By', value: `${interaction.user}`, inline: true },
+                    { name: 'Requested By', value: `${interaction.user} (${interaction.user.username})`, inline: true },
+                    { name: 'Ticket', value: `#${ticket.ticketNumber || interaction.channel.name}`, inline: true },
                 )
                 .setTimestamp()
                 .setFooter({ text: 'You have 5 minutes to accept or decline.' });
@@ -70,7 +81,7 @@ module.exports = {
                     .setEmoji('❌'),
             );
 
-            await interaction.reply({ content: `<@${ticket.creatorId}>`, embeds: [requestEmbed], components: [row] });
+            await interaction.reply({ embeds: [requestEmbed], components: [row] });
 
             // Auto-expire after 5 minutes
             setTimeout(async () => {

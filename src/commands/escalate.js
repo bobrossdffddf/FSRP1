@@ -6,9 +6,15 @@ const {
 const { getTicketData, setTicketData } = require('../utils/ticketManager');
 
 const ESCALATION_LEVELS = {
-    Management: 'managementCategoryId',
+    Management:   'managementCategoryId',
     Directorship: 'directorshipCategoryId',
-    Ownership: 'ownershipCategoryId',
+    Ownership:    'ownershipCategoryId',
+};
+
+const ESCALATION_PREFIXES = {
+    Management:   'manag',
+    Directorship: 'direct',
+    Ownership:    'owner',
 };
 
 module.exports = {
@@ -63,6 +69,12 @@ module.exports = {
                 lockPermissions: false,
                 reason: `Ticket escalated to ${level} by ${interaction.user.username}`,
             });
+
+            // Rename the channel to reflect the escalation level
+            const prefix    = ESCALATION_PREFIXES[level];
+            const ticketNum = ticket.ticketNumber || '0000';
+            const newName   = `${prefix}-${String(ticketNum).padStart(4, '0')}`;
+            await interaction.channel.setName(newName, `Ticket escalated to ${level}`).catch(() => {});
 
             // Get the role for that level if configured
             const roleKey = `${level.toLowerCase()}RoleId`;

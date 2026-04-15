@@ -9,19 +9,52 @@ const {
     ActionRowBuilder,
     ButtonBuilder,
     ButtonStyle,
+    AttachmentBuilder,
     PermissionFlagsBits,
     ChannelType,
     MessageFlags,
 } = require('discord.js');
+const axios = require('axios');
 
 const { setTicketData, nextTicketNumber } = require('../utils/ticketManager');
 const { getRobloxConnection }             = require('../api/melonly');
 const { getRobloxUser, getRobloxHeadshot } = require('../api/roblox');
 
-const BANNER_URL  = 'https://i.postimg.cc/59HmqpCR/INFormation.png';
-const LOGO_URL    = 'https://i.postimg.cc/T1K1HQCs/FSR-logo-with-tropical-scene.webp';
-const ACCENT      = 0x4B5EFC;
-const CV2_FLAG    = MessageFlags.IsComponentsV2;
+const BANNER_URL        = 'https://i.postimg.cc/65v2rSMK/Ticket.png';
+const BANNER_ATTACH_URL = 'attachment://banner.png';
+const FOOTER_URL        = 'https://i.postimg.cc/sXq1k9TY/Your-paragraph-text-(2).png';
+const FOOTER_ATTACH_URL = 'attachment://footer.png';
+const LOGO_URL          = 'https://i.postimg.cc/T1K1HQCs/FSR-logo-with-tropical-scene.webp';
+const ACCENT            = 0x4B5EFC;
+const CV2_FLAG          = MessageFlags.IsComponentsV2;
+
+// Cached image buffers — null = not yet tried, false = failed, Buffer = success
+let _bannerBuffer = null;
+let _footerBuffer = null;
+
+async function tryFetchBuffer(url, label) {
+    try {
+        const res = await axios.get(url, { responseType: 'arraybuffer', timeout: 10000 });
+        return Buffer.from(res.data);
+    } catch (err) {
+        console.warn(`[Ticket] Could not fetch ${label} image (${url}): ${err.message}`);
+        return false;
+    }
+}
+
+async function getTicketAttachments() {
+    if (_bannerBuffer === null) _bannerBuffer = await tryFetchBuffer(BANNER_URL, 'banner');
+    if (_footerBuffer === null) _footerBuffer = await tryFetchBuffer(FOOTER_URL, 'footer');
+
+    return {
+        files:     [
+            _bannerBuffer ? new AttachmentBuilder(_bannerBuffer, { name: 'banner.png' }) : null,
+            _footerBuffer ? new AttachmentBuilder(_footerBuffer, { name: 'footer.png' }) : null,
+        ].filter(Boolean),
+        hasBanner: !!_bannerBuffer,
+        hasFooter: !!_footerBuffer,
+    };
+}
 
 // Server emoji IDs
 const EMOJI_STAFF   = { id: '1491568422205526118', name: 'staff' };
@@ -40,6 +73,9 @@ function buildTicketContainer(opts) {
         channelId,
         claimed,          // false = unclaimed, true = claimed
         claimerMention,
+        ping,
+        hasBanner = false,
+        hasFooter = false,
     } = opts;
 
     const robloxSection = new SectionBuilder()
@@ -78,14 +114,26 @@ function buildTicketContainer(opts) {
                 .setEmoji(EMOJI_WARNING),
         );
 
-    const container = new ContainerBuilder()
-        .setAccentColor(ACCENT)
-        .addMediaGalleryComponents(
+    const container = new ContainerBuilder().setAccentColor(ACCENT);
+
+    if (hasBanner) {
+        container.addMediaGalleryComponents(
             new MediaGalleryBuilder().addItems([
-                new MediaGalleryItemBuilder().setURL(BANNER_URL),
+                new MediaGalleryItemBuilder().setURL(BANNER_ATTACH_URL),
             ])
-        )
-        .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(1))
+        );
+    }
+
+    container.addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(1));
+
+    if (ping) {
+        container.addTextDisplayComponents(
+            new TextDisplayBuilder().setContent(ping)
+        );
+        container.addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(1));
+    }
+
+    container
         .addSectionComponents(robloxSection)
         .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(1))
         .addTextDisplayComponents(
@@ -106,6 +154,14 @@ function buildTicketContainer(opts) {
     container.addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(1));
     container.addActionRowComponents(buttons);
 
+    if (hasFooter) {
+        container.addMediaGalleryComponents(
+            new MediaGalleryBuilder().addItems([
+                new MediaGalleryItemBuilder().setURL(FOOTER_ATTACH_URL),
+            ])
+        );
+    }
+
     return container;
 }
 
@@ -120,7 +176,7 @@ async function createTicket(interaction, client, reason) {
     const supportRoleId = settings.ticketSupportRoleId;
 
     const ticketNum   = nextTicketNumber(client, guild.id);
-    const channelName = `ticket-${String(ticketNum).padStart(4, '0')}`;
+    const channelName = `gen-${String(ticketNum).padStart(4, '0')}`;
 
     const permOverwrites = [
         { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
@@ -166,8 +222,8 @@ async function createTicket(interaction, client, reason) {
             type: ChannelType.GuildText,
             parent: categoryId || null,
             permissionOverwrites: permOverwrites,
-            topic: `Ticket #${ticketNum} | ${creator.user.username} | ${reason}`,
-            reason: `Ticket #${ticketNum} by ${creator.user.username}`,
+            topic: `General Ticket #${ticketNum} | ${creator.user.username} | ${reason}`,
+            reason: `General Ticket #${ticketNum} by ${creator.user.username}`,
         });
     } catch (err) {
         console.error('[Ticket] Failed to create channel:', err.message);
@@ -238,24 +294,29 @@ async function createTicket(interaction, client, reason) {
         welcomeText,
     });
 
-    const container = buildTicketContainer({
-        creatorMention: `${creator}`,
-        robloxText,
-        thumbnailUrl,
-        welcomeText,
-        reason,
-        channelId:      ticketChannel.id,
-        claimed:        false,
-    });
-
     const ping = supportRoleId
         ? `${creator} <@&${supportRoleId}>`
         : `${creator}`;
 
     try {
+        const { files, hasBanner, hasFooter } = await getTicketAttachments();
+
+        const container = buildTicketContainer({
+            creatorMention: `${creator}`,
+            robloxText,
+            thumbnailUrl,
+            welcomeText,
+            reason,
+            channelId:      ticketChannel.id,
+            claimed:        false,
+            ping,
+            hasBanner,
+            hasFooter,
+        });
+
         const sent = await ticketChannel.send({
-            content:    ping,
             components: [container],
+            files,
             flags:      CV2_FLAG,
         });
 
@@ -269,7 +330,7 @@ async function createTicket(interaction, client, reason) {
 
 // ── Rebuild for claim / unclaim ───────────────────────────────────────────────
 
-function buildUpdatedContainer(ticket, claimed, claimerMention) {
+function buildUpdatedContainer(ticket, claimed, claimerMention, { hasBanner = false, hasFooter = false } = {}) {
     return buildTicketContainer({
         creatorMention: `<@${ticket.creatorId}>`,
         robloxText:     ticket.robloxText     || '*No roblox info stored.*',
@@ -279,6 +340,8 @@ function buildUpdatedContainer(ticket, claimed, claimerMention) {
         channelId:      ticket.channelId,
         claimed,
         claimerMention,
+        hasBanner,
+        hasFooter,
     });
 }
 
@@ -302,5 +365,6 @@ function formatRelative(date) {
 module.exports = {
     createTicket,
     buildUpdatedContainer,
+    getTicketAttachments,
     CV2_FLAG,
 };

@@ -20,7 +20,7 @@ const {
 } = require('./priorityHandler');
 const { activeFlags, consecutiveBadScans } = require('./shiftMonitor');
 const { getTicketData, setTicketData } = require('../utils/ticketManager');
-const { buildUpdatedContainer, CV2_FLAG } = require('./ticketActions');
+const { buildUpdatedContainer, getTicketAttachments, CV2_FLAG } = require('./ticketActions');
 const { closeTicket } = require('../commands/close');
 
 const isHardcodeComponent = interaction => {
@@ -118,13 +118,16 @@ module.exports = {
 
                 setTicketData(client, channelId, { claimedBy: interaction.user.id });
                 const freshTicket = getTicketData(client, channelId);
-                const container   = buildUpdatedContainer(freshTicket, true, `${interaction.user}`);
 
                 await interaction.deferUpdate();
 
                 if (freshTicket.ticketMessageId) {
                     const msg = await interaction.channel.messages.fetch(freshTicket.ticketMessageId).catch(() => null);
-                    if (msg) await msg.edit({ components: [container], flags: CV2_FLAG }).catch(e => console.warn('[Claim] edit failed:', e.message));
+                    if (msg) {
+                        const { files, hasBanner, hasFooter } = await getTicketAttachments();
+                        const container = buildUpdatedContainer(freshTicket, true, `${interaction.user}`, { hasBanner, hasFooter });
+                        await msg.edit({ components: [container], files, flags: CV2_FLAG }).catch(e => console.warn('[Claim] edit failed:', e.message));
+                    }
                 }
                 return;
             }
@@ -141,13 +144,16 @@ module.exports = {
 
                 setTicketData(client, channelId, { claimedBy: null });
                 const freshTicket = getTicketData(client, channelId);
-                const container   = buildUpdatedContainer(freshTicket, false, null);
 
                 await interaction.deferUpdate();
 
                 if (freshTicket.ticketMessageId) {
                     const msg = await interaction.channel.messages.fetch(freshTicket.ticketMessageId).catch(() => null);
-                    if (msg) await msg.edit({ components: [container], flags: CV2_FLAG }).catch(e => console.warn('[Unclaim] edit failed:', e.message));
+                    if (msg) {
+                        const { files, hasBanner, hasFooter } = await getTicketAttachments();
+                        const container = buildUpdatedContainer(freshTicket, false, null, { hasBanner, hasFooter });
+                        await msg.edit({ components: [container], files, flags: CV2_FLAG }).catch(e => console.warn('[Unclaim] edit failed:', e.message));
+                    }
                 }
                 return;
             }
@@ -163,9 +169,10 @@ module.exports = {
                 const supportRoleId = settings.ticketSupportRoleId;
                 const hasRole       = supportRoleId ? interaction.member.roles.cache.has(supportRoleId) : false;
                 const isAdmin       = interaction.member.permissions.has(PermissionFlagsBits.Administrator);
+                const isCreator     = interaction.user.id === ticket.creatorId;
 
-                if (!hasRole && !isAdmin) {
-                    return interaction.reply({ content: 'Only support staff can close tickets.', flags: 64 });
+                if (!hasRole && !isAdmin && !isCreator) {
+                    return interaction.reply({ content: 'Only support staff or the ticket creator can close this ticket.', flags: 64 });
                 }
 
                 await interaction.deferReply({ flags: 64 });

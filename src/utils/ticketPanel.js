@@ -12,7 +12,7 @@ const {
     MessageFlags,
 } = require('discord.js');
 
-const BANNER_URL = 'https://i.postimg.cc/59HmqpCR/INFormation.png';
+const BANNER_URL = 'https://imgur.com/a/ZXzR48e';
 const LOGO_URL   = 'https://i.postimg.cc/T1K1HQCs/FSR-logo-with-tropical-scene.webp';
 
 const ACCENT = 0x4B5EFC;
