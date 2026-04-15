@@ -4,7 +4,7 @@ const { getMainGuildId } = require('../utils/guildConfig');
 const OWNER_ID = '848356730256883744';
 const REQUIRED_ROLE_ID = '1488210128187560169';
 const OWNER_ONLY_COMMANDS = ['git'];
-const SELF_PERMISSIONED_COMMANDS = ['setup', 'infraction', 'promote', 'staffrequest', 'statlookup', 'my-infractions'];
+const SELF_PERMISSIONED_COMMANDS = ['setup', 'infraction', 'promote', 'staffrequest', 'statlookup', 'my-infractions', 'escalate', 'rename', 'close'];
 
 const log = (level, command, message) => {
     const timestamp = new Date().toISOString();
@@ -100,6 +100,25 @@ module.exports = {
                     await handlePriorityModal(interaction, client);
                     return;
                 }
+
+                if (interaction.customId === 'ticket_open_modal') {
+                    const { createTicket } = require('./ticketActions');
+                    const reason = interaction.fields.getTextInputValue('ticket_reason');
+
+                    await interaction.deferReply({ flags: 64 });
+
+                    const ticketChannel = await createTicket(interaction, client, reason);
+                    if (!ticketChannel) {
+                        return interaction.editReply({
+                            content: 'Failed to create your ticket. Please make sure the bot has permission to manage channels and try again.',
+                        });
+                    }
+
+                    return interaction.editReply({
+                        content: `Your ticket has been opened in ${ticketChannel}. Our staff team will be with you shortly.`,
+                    });
+                }
+
                 return;
             }
 
