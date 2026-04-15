@@ -76,6 +76,10 @@ async function getAuditLogs(page = 1, limit = 50) {
     return safeGet('/server/audit-logs', { page, limit });
 }
 
+async function getRobloxConnection(discordId) {
+    return safeGet(`/verification/discord/${discordId}/roblox`);
+}
+
 module.exports = {
     getServerInfo,
     getServerShifts,
@@ -89,4 +93,5 @@ module.exports = {
     getServerLoas,
     getLeasForMember,
     getAuditLogs,
+    getRobloxConnection,
 };

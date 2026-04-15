@@ -20,7 +20,7 @@ const {
 } = require('./priorityHandler');
 const { activeFlags, consecutiveBadScans } = require('./shiftMonitor');
 const { getTicketData, setTicketData } = require('../utils/ticketManager');
-const { buildClaimedRow, buildClaimedBanner, buildStaffRow } = require('./ticketActions');
+const { buildUpdatedContainer, CV2_FLAG } = require('./ticketActions');
 const { closeTicket } = require('../commands/close');
 
 const isHardcodeComponent = interaction => {
@@ -107,22 +107,25 @@ module.exports = {
                     return interaction.reply({ content: `This ticket is already claimed by <@${ticket.claimedBy}>.`, flags: 64 });
                 }
 
-                const settings       = client.settings.get(interaction.guild.id) || {};
-                const supportRoleId  = settings.ticketSupportRoleId;
-                const hasRole        = supportRoleId ? interaction.member.roles.cache.has(supportRoleId) : false;
-                const isAdmin        = interaction.member.permissions.has(PermissionFlagsBits.Administrator);
+                const settings      = client.settings.get(interaction.guild.id) || {};
+                const supportRoleId = settings.ticketSupportRoleId;
+                const hasRole       = supportRoleId ? interaction.member.roles.cache.has(supportRoleId) : false;
+                const isAdmin       = interaction.member.permissions.has(PermissionFlagsBits.Administrator);
 
                 if (!hasRole && !isAdmin) {
                     return interaction.reply({ content: 'Only support staff can claim tickets.', flags: 64 });
                 }
 
                 setTicketData(client, channelId, { claimedBy: interaction.user.id });
+                const freshTicket = getTicketData(client, channelId);
+                const container   = buildUpdatedContainer(freshTicket, true, `${interaction.user}`);
 
-                const claimedRow    = buildClaimedRow(channelId);
-                const claimedBanner = buildClaimedBanner(interaction.user);
+                await interaction.deferUpdate();
 
-                await interaction.update({ components: [claimedRow] });
-                await interaction.channel.send({ embeds: [claimedBanner] });
+                if (freshTicket.ticketMessageId) {
+                    const msg = await interaction.channel.messages.fetch(freshTicket.ticketMessageId).catch(() => null);
+                    if (msg) await msg.edit({ components: [container], flags: CV2_FLAG }).catch(e => console.warn('[Claim] edit failed:', e.message));
+                }
                 return;
             }
 
@@ -137,14 +140,15 @@ module.exports = {
                 }
 
                 setTicketData(client, channelId, { claimedBy: null });
+                const freshTicket = getTicketData(client, channelId);
+                const container   = buildUpdatedContainer(freshTicket, false, null);
 
-                const unclaimedRow = buildStaffRow(channelId);
-                const embed = new EmbedBuilder()
-                    .setColor(0xFEE75C)
-                    .setDescription(`${interaction.user} has unclaimed this ticket. Another staff member can now claim it.`);
+                await interaction.deferUpdate();
 
-                await interaction.update({ components: [unclaimedRow] });
-                await interaction.channel.send({ embeds: [embed] });
+                if (freshTicket.ticketMessageId) {
+                    const msg = await interaction.channel.messages.fetch(freshTicket.ticketMessageId).catch(() => null);
+                    if (msg) await msg.edit({ components: [container], flags: CV2_FLAG }).catch(e => console.warn('[Unclaim] edit failed:', e.message));
+                }
                 return;
             }
 

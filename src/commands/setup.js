@@ -6,7 +6,7 @@ const {
 } = require('discord.js');
 
 const { buildPriorityEmbed, buildPriorityRow } = require('../utils/priorityMessage');
-const { buildTicketPanelEmbeds, buildTicketPanelRow } = require('../utils/ticketPanel');
+const { buildTicketPanelContainer, TICKET_FLAGS } = require('../utils/ticketPanel');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -171,8 +171,8 @@ module.exports = {
             updates.ticketPanelChannelId = ticketPanelChannel.id;
             try {
                 const sent = await ticketPanelChannel.send({
-                    embeds: buildTicketPanelEmbeds(),
-                    components: [buildTicketPanelRow()],
+                    components: [buildTicketPanelContainer()],
+                    flags: TICKET_FLAGS,
                 });
                 updates.ticketPanelMessageId = sent.id;
             } catch (e) {
