@@ -571,9 +571,10 @@ module.exports = {
             // ── Ticket type select (panel dropdown) ────────────────────────────
             if (interaction.customId === 'ticket_type_select') {
                 const selected = interaction.values[0];
+                let modal;
 
                 if (selected === 'general_support') {
-                    const modal = new ModalBuilder()
+                    modal = new ModalBuilder()
                         .setCustomId('ticket_open_modal')
                         .setTitle('Open a Support Ticket');
 
@@ -588,12 +589,8 @@ module.exports = {
                                 .setPlaceholder('Briefly describe your issue or question...')
                         )
                     );
-
-                    return interaction.showModal(modal);
-                }
-
-                if (selected === 'internal_affairs') {
-                    const modal = new ModalBuilder()
+                } else if (selected === 'internal_affairs') {
+                    modal = new ModalBuilder()
                         .setCustomId('ia_ticket_modal')
                         .setTitle('Internal Affairs Submission');
 
@@ -609,12 +606,8 @@ module.exports = {
                                 .setPlaceholder('Briefly describe the nature of your Internal Affairs report...')
                         )
                     );
-
-                    return interaction.showModal(modal);
-                }
-
-                if (selected === 'staff_report') {
-                    const modal = new ModalBuilder()
+                } else if (selected === 'staff_report') {
+                    modal = new ModalBuilder()
                         .setCustomId('staff_report_modal')
                         .setTitle('Staff Report Submission');
 
@@ -657,10 +650,13 @@ module.exports = {
                                     .setPlaceholder('https://...')
                             ),
                     );
-
-                    return interaction.showModal(modal);
                 }
 
+                if (modal) {
+                    await interaction.showModal(modal).catch(err => {
+                        if (err.code !== 10062) throw err;
+                    });
+                }
                 return;
             }
 

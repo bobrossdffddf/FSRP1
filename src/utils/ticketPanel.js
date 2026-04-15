@@ -1,5 +1,3 @@
-const fs   = require('fs');
-const path = require('path');
 const {
     ContainerBuilder,
     MediaGalleryBuilder,
@@ -11,42 +9,22 @@ const {
     ActionRowBuilder,
     StringSelectMenuBuilder,
     StringSelectMenuOptionBuilder,
-    AttachmentBuilder,
     MessageFlags,
 } = require('discord.js');
+const { getAssetUrl } = require('./assetServer');
 
-const BANNER_PATH       = path.join(__dirname, '../../assets/banner.png');
-const LOGO_URL          = 'https://i.postimg.cc/T1K1HQCs/FSR-logo-with-tropical-scene.webp';
-const BANNER_ATTACH_URL = 'attachment://banner.png';
-
-const ACCENT = 0x4B5EFC;
-
-let _bannerBuffer = null;
-
-function getPanelBannerBuffer() {
-    if (_bannerBuffer === null) {
-        try {
-            if (fs.existsSync(BANNER_PATH)) {
-                _bannerBuffer = fs.readFileSync(BANNER_PATH);
-            } else {
-                _bannerBuffer = false;
-            }
-        } catch {
-            _bannerBuffer = false;
-        }
-    }
-    return _bannerBuffer;
-}
+const LOGO_URL = 'https://i.postimg.cc/T1K1HQCs/FSR-logo-with-tropical-scene.webp';
+const ACCENT   = 0x4B5EFC;
 
 function buildTicketPanelContainer() {
-    const bannerBuf = getPanelBannerBuffer();
+    const bannerUrl = getAssetUrl('banner.png');
 
     const container = new ContainerBuilder().setAccentColor(ACCENT);
 
-    if (bannerBuf) {
+    if (bannerUrl) {
         container.addMediaGalleryComponents(
             new MediaGalleryBuilder().addItems([
-                new MediaGalleryItemBuilder().setURL(BANNER_ATTACH_URL),
+                new MediaGalleryItemBuilder().setURL(bannerUrl),
             ])
         );
     }
@@ -102,8 +80,7 @@ function buildTicketPanelContainer() {
 }
 
 function buildTicketPanelFiles() {
-    const bannerBuf = getPanelBannerBuffer();
-    return bannerBuf ? [new AttachmentBuilder(bannerBuf, { name: 'banner.png' })] : [];
+    return [];
 }
 
 module.exports = {

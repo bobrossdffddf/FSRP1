@@ -14,51 +14,33 @@ const {
     ChannelType,
     MessageFlags,
 } = require('discord.js');
-const fs   = require('fs');
-const path = require('path');
-
 const { setTicketData, nextTicketNumber } = require('../utils/ticketManager');
 const { getRobloxConnection }             = require('../api/melonly');
 const { getRobloxUser, getRobloxHeadshot } = require('../api/roblox');
+const { getAssetUrl }                     = require('../utils/assetServer');
 
-const BANNER_PATH       = path.join(__dirname, '../../assets/banner.png');
-const FOOTER_PATH       = path.join(__dirname, '../../assets/footer.png');
-const BANNER_ATTACH_URL = 'attachment://banner.png';
-const FOOTER_ATTACH_URL = 'attachment://footer.png';
-const LOGO_URL          = 'https://i.postimg.cc/T1K1HQCs/FSR-logo-with-tropical-scene.webp';
-const ACCENT            = 0x4B5EFC;
-const CV2_FLAG          = MessageFlags.IsComponentsV2;
+const LOGO_URL   = 'https://i.postimg.cc/T1K1HQCs/FSR-logo-with-tropical-scene.webp';
+const ACCENT     = 0x4B5EFC;
+const CV2_FLAG   = MessageFlags.IsComponentsV2;
 
-// Cached image buffers — loaded once from disk
-let _bannerBuffer = null;
-let _footerBuffer = null;
+// Resolved once per session from the local asset server
+const BANNER_URL = () => getAssetUrl('banner.png');
+const FOOTER_URL = () => getAssetUrl('footer.png');
 
-function loadLocalBuffer(filePath, label) {
-    try {
-        if (fs.existsSync(filePath)) {
-            const buf = fs.readFileSync(filePath);
-            console.log(`[Ticket] Loaded ${label} from disk (${buf.length} bytes)`);
-            return buf;
-        }
-        console.warn(`[Ticket] ${label} file not found at: ${filePath}`);
-        return false;
-    } catch (err) {
-        console.warn(`[Ticket] Could not read ${label} from disk: ${err.message}`);
-        return false;
-    }
-}
-
+/**
+ * Returns banner/footer HTTP URLs from the local asset server.
+ * No file attachments needed — Discord fetches via HTTPS.
+ */
 function getTicketAttachments() {
-    if (_bannerBuffer === null) _bannerBuffer = loadLocalBuffer(BANNER_PATH, 'banner');
-    if (_footerBuffer === null) _footerBuffer = loadLocalBuffer(FOOTER_PATH, 'footer');
+    const bannerUrl = getAssetUrl('banner.png');
+    const footerUrl = getAssetUrl('footer.png');
 
     return {
-        files: [
-            _bannerBuffer ? new AttachmentBuilder(_bannerBuffer, { name: 'banner.png' }) : null,
-            _footerBuffer ? new AttachmentBuilder(_footerBuffer, { name: 'footer.png' }) : null,
-        ].filter(Boolean),
-        hasBanner: !!_bannerBuffer,
-        hasFooter: !!_footerBuffer,
+        files:     [],
+        hasBanner: !!bannerUrl,
+        hasFooter: !!footerUrl,
+        bannerUrl: bannerUrl || null,
+        footerUrl: footerUrl || null,
     };
 }
 
@@ -125,7 +107,7 @@ function buildTicketContainer(opts) {
     if (hasBanner) {
         container.addMediaGalleryComponents(
             new MediaGalleryBuilder().addItems([
-                new MediaGalleryItemBuilder().setURL(BANNER_ATTACH_URL),
+                new MediaGalleryItemBuilder().setURL(BANNER_URL()),
             ])
         );
     }
@@ -163,7 +145,7 @@ function buildTicketContainer(opts) {
     if (hasFooter) {
         container.addMediaGalleryComponents(
             new MediaGalleryBuilder().addItems([
-                new MediaGalleryItemBuilder().setURL(FOOTER_ATTACH_URL),
+                new MediaGalleryItemBuilder().setURL(FOOTER_URL()),
             ])
         );
     }
@@ -574,7 +556,7 @@ function buildStaffReportContainer(opts) {
     if (hasBanner) {
         container.addMediaGalleryComponents(
             new MediaGalleryBuilder().addItems([
-                new MediaGalleryItemBuilder().setURL(BANNER_ATTACH_URL),
+                new MediaGalleryItemBuilder().setURL(BANNER_URL()),
             ])
         );
     }
@@ -622,7 +604,7 @@ function buildStaffReportContainer(opts) {
     if (hasFooter) {
         container.addMediaGalleryComponents(
             new MediaGalleryBuilder().addItems([
-                new MediaGalleryItemBuilder().setURL(FOOTER_ATTACH_URL),
+                new MediaGalleryItemBuilder().setURL(FOOTER_URL()),
             ])
         );
     }
@@ -830,7 +812,7 @@ function buildIAContainer(opts) {
     if (hasBanner) {
         container.addMediaGalleryComponents(
             new MediaGalleryBuilder().addItems([
-                new MediaGalleryItemBuilder().setURL(BANNER_ATTACH_URL),
+                new MediaGalleryItemBuilder().setURL(BANNER_URL()),
             ])
         );
     }
@@ -862,7 +844,7 @@ function buildIAContainer(opts) {
     if (hasFooter) {
         container.addMediaGalleryComponents(
             new MediaGalleryBuilder().addItems([
-                new MediaGalleryItemBuilder().setURL(FOOTER_ATTACH_URL),
+                new MediaGalleryItemBuilder().setURL(FOOTER_URL()),
             ])
         );
     }

@@ -4,6 +4,10 @@ const { setGlobalDispatcher, Agent } = require('undici');
 const fs = require('fs');
 const path = require('path');
 const dns = require('dns');
+const { startAssetServer } = require('./src/utils/assetServer');
+
+// Start the static image server (serves banner/footer over HTTPS via REPLIT_DEV_DOMAIN)
+startAssetServer();
 
 dns.setDefaultResultOrder('ipv4first');
 
