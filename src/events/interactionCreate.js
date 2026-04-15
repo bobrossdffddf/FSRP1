@@ -119,6 +119,53 @@ module.exports = {
                     });
                 }
 
+                if (interaction.customId === 'staff_report_modal') {
+                    const { createStaffReportTicket } = require('./ticketActions');
+
+                    const description = interaction.fields.getTextInputValue('report_description');
+
+                    // Reported user (UserSelect — required)
+                    const selectedUsers = interaction.fields.getSelectedUsers('reported_user', true);
+                    const reportedUserId = selectedUsers?.firstKey();
+                    if (!reportedUserId) {
+                        return interaction.reply({
+                            content: 'No user was selected. Please try again and select the individual being reported.',
+                            flags: 64,
+                        });
+                    }
+
+                    // Optional: uploaded evidence files
+                    let evidenceFiles = null;
+                    try {
+                        evidenceFiles = interaction.fields.getUploadedFiles('evidence_files', false);
+                    } catch { /* field not present or empty */ }
+
+                    // Optional: clip/video URL
+                    let clipUrl = '';
+                    try {
+                        clipUrl = (interaction.fields.getTextInputValue('clip_url') ?? '').trim();
+                    } catch { /* field not present or empty */ }
+
+                    await interaction.deferReply({ flags: 64 });
+
+                    const ticketChannel = await createStaffReportTicket(interaction, client, {
+                        description,
+                        reportedUserId,
+                        evidenceFiles,
+                        clipUrl,
+                    });
+
+                    if (!ticketChannel) {
+                        return interaction.editReply({
+                            content: 'Failed to create your report. Please make sure the bot has permission to manage channels and try again.',
+                        });
+                    }
+
+                    return interaction.editReply({
+                        content: `Your staff report has been submitted in ${ticketChannel}. A member of our team will review it shortly.`,
+                    });
+                }
+
                 return;
             }
 

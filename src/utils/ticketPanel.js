@@ -7,12 +7,12 @@ const {
     SeparatorBuilder,
     ThumbnailBuilder,
     ActionRowBuilder,
-    ButtonBuilder,
-    ButtonStyle,
+    StringSelectMenuBuilder,
+    StringSelectMenuOptionBuilder,
     MessageFlags,
 } = require('discord.js');
 
-const BANNER_URL = 'https://imgur.com/a/ZXzR48e';
+const BANNER_URL = 'https://e93ab161-15bb-4d94-b7df-be43394606f1-00-3kpdmrbsy5j3a.picard.replit.dev/i/0e8ed398-63ef-4570-9a3c-4e11b0c65edf';
 const LOGO_URL   = 'https://i.postimg.cc/T1K1HQCs/FSR-logo-with-tropical-scene.webp';
 
 const ACCENT = 0x4B5EFC;
@@ -48,11 +48,21 @@ function buildTicketPanelContainer() {
         )
         .addActionRowComponents(
             new ActionRowBuilder().addComponents(
-                new ButtonBuilder()
-                    .setCustomId('ticket_open')
-                    .setLabel('Open')
-                    .setStyle(ButtonStyle.Secondary)
-                    .setEmoji({ id: '1491568422205526118', name: 'staff' })
+                new StringSelectMenuBuilder()
+                    .setCustomId('ticket_type_select')
+                    .setPlaceholder('Select a ticket type...')
+                    .addOptions(
+                        new StringSelectMenuOptionBuilder()
+                            .setLabel('General Support')
+                            .setDescription('Open a general support ticket with our staff team')
+                            .setValue('general_support')
+                            .setEmoji({ id: '1491568422205526118', name: 'staff' }),
+                        new StringSelectMenuOptionBuilder()
+                            .setLabel('Staff Report')
+                            .setDescription('Submit a formal report regarding a staff member or player')
+                            .setValue('staff_report')
+                            .setEmoji({ id: '1489218432850464768', name: 'warning' }),
+                    )
             )
         );
 }

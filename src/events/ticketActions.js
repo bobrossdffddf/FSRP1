@@ -20,21 +20,26 @@ const { setTicketData, nextTicketNumber } = require('../utils/ticketManager');
 const { getRobloxConnection }             = require('../api/melonly');
 const { getRobloxUser, getRobloxHeadshot } = require('../api/roblox');
 
-const BANNER_URL        = 'https://i.postimg.cc/65v2rSMK/Ticket.png';
+const BANNER_URL        = 'https://e93ab161-15bb-4d94-b7df-be43394606f1-00-3kpdmrbsy5j3a.picard.replit.dev/i/0e8ed398-63ef-4570-9a3c-4e11b0c65edf';
 const BANNER_ATTACH_URL = 'attachment://banner.png';
-const FOOTER_URL        = 'https://i.postimg.cc/sXq1k9TY/Your-paragraph-text-(2).png';
+const FOOTER_URL        = 'https://e93ab161-15bb-4d94-b7df-be43394606f1-00-3kpdmrbsy5j3a.picard.replit.dev/i/0e8ed398-63ef-4570-9a3c-4e11b0c65edf';
 const FOOTER_ATTACH_URL = 'attachment://footer.png';
 const LOGO_URL          = 'https://i.postimg.cc/T1K1HQCs/FSR-logo-with-tropical-scene.webp';
 const ACCENT            = 0x4B5EFC;
 const CV2_FLAG          = MessageFlags.IsComponentsV2;
 
-// Cached image buffers — null = not yet tried, false = failed, Buffer = success
+// Cached image buffers — null = not yet tried, false = failed/invalid, Buffer = success
 let _bannerBuffer = null;
 let _footerBuffer = null;
 
 async function tryFetchBuffer(url, label) {
     try {
         const res = await axios.get(url, { responseType: 'arraybuffer', timeout: 10000 });
+        const contentType = res.headers['content-type'] ?? '';
+        if (!contentType.startsWith('image/')) {
+            console.warn(`[Ticket] ${label} URL returned non-image content-type: ${contentType}`);
+            return false;
+        }
         return Buffer.from(res.data);
     } catch (err) {
         console.warn(`[Ticket] Could not fetch ${label} image (${url}): ${err.message}`);
@@ -328,6 +333,302 @@ async function createTicket(interaction, client, reason) {
     return ticketChannel;
 }
 
+// ── Create Staff Report Ticket ────────────────────────────────────────────────
+
+async function createStaffReportTicket(interaction, client, opts) {
+    const { description, reportedUserId, evidenceFiles, clipUrl } = opts;
+
+    const guild    = interaction.guild;
+    const reporter = interaction.member;
+    const settings = client.settings.get(guild.id) || {};
+
+    const categoryId    = settings.ticketCategoryId;
+    const supportRoleId = settings.ticketSupportRoleId;
+
+    const ticketNum   = nextTicketNumber(client, guild.id);
+    const channelName = `rpt-${String(ticketNum).padStart(4, '0')}`;
+
+    // Fetch the reported member from the guild
+    let reportedMember = null;
+    try {
+        reportedMember = await guild.members.fetch(reportedUserId);
+    } catch { /* member may not be in guild */ }
+    const reportedUser = reportedMember?.user ?? null;
+
+    const permOverwrites = [
+        { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
+        {
+            id: reporter.id,
+            allow: [
+                PermissionFlagsBits.ViewChannel,
+                PermissionFlagsBits.SendMessages,
+                PermissionFlagsBits.ReadMessageHistory,
+                PermissionFlagsBits.AttachFiles,
+            ],
+        },
+        {
+            id: client.user.id,
+            allow: [
+                PermissionFlagsBits.ViewChannel,
+                PermissionFlagsBits.SendMessages,
+                PermissionFlagsBits.ReadMessageHistory,
+                PermissionFlagsBits.ManageChannels,
+                PermissionFlagsBits.ManageMessages,
+                PermissionFlagsBits.AttachFiles,
+            ],
+        },
+    ];
+
+    if (supportRoleId) {
+        permOverwrites.push({
+            id: supportRoleId,
+            allow: [
+                PermissionFlagsBits.ViewChannel,
+                PermissionFlagsBits.SendMessages,
+                PermissionFlagsBits.ReadMessageHistory,
+                PermissionFlagsBits.AttachFiles,
+                PermissionFlagsBits.ManageMessages,
+            ],
+        });
+    }
+
+    let ticketChannel;
+    try {
+        ticketChannel = await guild.channels.create({
+            name: channelName,
+            type: ChannelType.GuildText,
+            parent: categoryId || null,
+            permissionOverwrites: permOverwrites,
+            topic: `Staff Report #${ticketNum} | Filed by ${reporter.user.username} | Against ${reportedUser?.username ?? reportedUserId}`,
+            reason: `Staff Report #${ticketNum} by ${reporter.user.username}`,
+        });
+    } catch (err) {
+        console.error('[StaffReport] Failed to create channel:', err.message);
+        return null;
+    }
+
+    // ── Fetch Roblox info for the reported user ───────────────────────────────
+    let robloxText   = '*Roblox account not linked or could not be retrieved.*';
+    let thumbnailUrl = LOGO_URL;
+
+    try {
+        const verification = await getRobloxConnection(reportedUserId);
+        if (verification?.robloxId) {
+            const robloxIdStr = verification.robloxId;
+
+            const headshotUrl = verification.headShotImage?.imageUrl
+                ?? verification.headShotImage?.url
+                ?? null;
+
+            const [robloxUser, headshot] = await Promise.all([
+                getRobloxUser(robloxIdStr),
+                headshotUrl ? Promise.resolve(headshotUrl) : getRobloxHeadshot(robloxIdStr),
+            ]);
+
+            if (headshot) thumbnailUrl = headshot;
+
+            if (robloxUser) {
+                const created = robloxUser.created
+                    ? formatDate(new Date(robloxUser.created))
+                    : '—';
+                robloxText =
+                    `**Username:** ${robloxUser.name} (${robloxIdStr})\n` +
+                    `**Display Name:** ${robloxUser.displayName}\n` +
+                    `**Account Created:** ${created}`;
+            } else {
+                robloxText = `**Roblox ID:** ${robloxIdStr}\n**Username:** *Roblox API unavailable*`;
+            }
+        }
+    } catch (err) {
+        console.warn('[StaffReport] Roblox lookup failed:', err.message);
+    }
+
+    // ── Build Discord info for the reported user ──────────────────────────────
+    const discordTag   = reportedUser ? (reportedUser.globalName ?? reportedUser.username) : `<@${reportedUserId}>`;
+    const joinedAt     = reportedMember?.joinedAt ? formatDate(reportedMember.joinedAt) : '—';
+    const discordText  =
+        `**Username:** ${reportedUser?.username ?? '—'}\n` +
+        `**Display Name:** ${discordTag}\n` +
+        `**User ID:** ${reportedUserId}\n` +
+        `**Joined Server:** ${joinedAt}`;
+
+    // ── Build additional info text ────────────────────────────────────────────
+    let additionalInfo = '';
+    if (clipUrl) additionalInfo += `**Video / Clip URL:** ${clipUrl}\n`;
+
+    if (evidenceFiles && evidenceFiles.size > 0) {
+        const links = [...evidenceFiles.values()].map((a, i) => `[Attachment ${i + 1}](${a.url})`).join(' • ');
+        additionalInfo += `**Evidence:** ${links}\n`;
+    }
+
+    // Store ticket data
+    setTicketData(client, ticketChannel.id, {
+        channelId:       ticketChannel.id,
+        guildId:         guild.id,
+        creatorId:       reporter.id,
+        claimedBy:       null,
+        reason:          `Staff Report against ${reportedUser?.username ?? reportedUserId}`,
+        openedAt:        Date.now(),
+        ticketNumber:    ticketNum,
+        escalationLevel: null,
+        ticketType:      'staff_report',
+        reportedUserId,
+        // Stored for container rebuilds
+        robloxText,
+        thumbnailUrl,
+        welcomeText:     '',
+    });
+
+    const ping = supportRoleId ? `${reporter} <@&${supportRoleId}>` : `${reporter}`;
+
+    try {
+        const { files, hasBanner, hasFooter } = await getTicketAttachments();
+
+        const container = buildStaffReportContainer({
+            reporterMention: `${reporter}`,
+            reportedMention: reportedUser ? `<@${reportedUserId}>` : `Unknown User (${reportedUserId})`,
+            discordText,
+            robloxText,
+            thumbnailUrl,
+            description,
+            additionalInfo,
+            channelId:       ticketChannel.id,
+            claimed:         false,
+            ping,
+            hasBanner,
+            hasFooter,
+        });
+
+        const sent = await ticketChannel.send({
+            components: [container],
+            files,
+            flags:      CV2_FLAG,
+        });
+
+        setTicketData(client, ticketChannel.id, { ticketMessageId: sent.id });
+    } catch (err) {
+        console.error('[StaffReport] Failed to send report message:', err.message);
+        console.error('[StaffReport] Error code:', err.code, '| HTTP status:', err.status ?? err.httpStatus);
+        console.error('[StaffReport] Raw error:', err.rawError ?? err.stack);
+    }
+
+    return ticketChannel;
+}
+
+function buildStaffReportContainer(opts) {
+    const {
+        reporterMention,
+        reportedMention,
+        discordText,
+        robloxText,
+        thumbnailUrl,
+        description,
+        additionalInfo,
+        channelId,
+        claimed,
+        claimerMention,
+        ping,
+        hasBanner = false,
+        hasFooter = false,
+    } = opts;
+
+    const reportedSection = new SectionBuilder()
+        .addTextDisplayComponents(
+            new TextDisplayBuilder().setContent(
+                `## Staff Report\n**Reported Individual:**\n${reportedMention}\n\n**Discord Information:**\n${discordText}\n\n**Roblox Information:**\n${robloxText}`
+            )
+        )
+        .setThumbnailAccessory(
+            new ThumbnailBuilder().setURL(thumbnailUrl).setDescription('Reported User')
+        );
+
+    const buttons = claimed
+        ? new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId(`ticket_close_force:${channelId}`)
+                .setLabel('Close')
+                .setStyle(ButtonStyle.Danger)
+                .setEmoji(EMOJI_WARNING),
+            new ButtonBuilder()
+                .setCustomId(`ticket_unclaim:${channelId}`)
+                .setLabel('Unclaim')
+                .setStyle(ButtonStyle.Secondary)
+                .setEmoji(EMOJI_PIN),
+        )
+        : new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId(`ticket_claim:${channelId}`)
+                .setLabel('Claim')
+                .setStyle(ButtonStyle.Success)
+                .setEmoji(EMOJI_STAFF),
+            new ButtonBuilder()
+                .setCustomId(`ticket_close_force:${channelId}`)
+                .setLabel('Close')
+                .setStyle(ButtonStyle.Danger)
+                .setEmoji(EMOJI_WARNING),
+        );
+
+    const container = new ContainerBuilder().setAccentColor(ACCENT);
+
+    if (hasBanner) {
+        container.addMediaGalleryComponents(
+            new MediaGalleryBuilder().addItems([
+                new MediaGalleryItemBuilder().setURL(BANNER_ATTACH_URL),
+            ])
+        );
+    }
+
+    container.addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(1));
+
+    if (ping) {
+        container.addTextDisplayComponents(
+            new TextDisplayBuilder().setContent(ping)
+        );
+        container.addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(1));
+    }
+
+    container
+        .addSectionComponents(reportedSection)
+        .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(1))
+        .addTextDisplayComponents(
+            new TextDisplayBuilder().setContent(
+                `**Incident Description**\n${description}`
+            )
+        );
+
+    if (additionalInfo) {
+        container.addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(1));
+        container.addTextDisplayComponents(
+            new TextDisplayBuilder().setContent(additionalInfo.trim())
+        );
+    }
+
+    container.addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(1));
+    container.addTextDisplayComponents(
+        new TextDisplayBuilder().setContent(`-# Report filed by ${reporterMention}`)
+    );
+
+    if (claimed && claimerMention) {
+        container.addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(1));
+        container.addTextDisplayComponents(
+            new TextDisplayBuilder().setContent(`-# Claimed by ${claimerMention}`)
+        );
+    }
+
+    container.addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(1));
+    container.addActionRowComponents(buttons);
+
+    if (hasFooter) {
+        container.addMediaGalleryComponents(
+            new MediaGalleryBuilder().addItems([
+                new MediaGalleryItemBuilder().setURL(FOOTER_ATTACH_URL),
+            ])
+        );
+    }
+
+    return container;
+}
+
 // ── Rebuild for claim / unclaim ───────────────────────────────────────────────
 
 function buildUpdatedContainer(ticket, claimed, claimerMention, { hasBanner = false, hasFooter = false } = {}) {
@@ -364,6 +665,7 @@ function formatRelative(date) {
 
 module.exports = {
     createTicket,
+    createStaffReportTicket,
     buildUpdatedContainer,
     getTicketAttachments,
     CV2_FLAG,

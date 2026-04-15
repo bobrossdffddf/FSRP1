@@ -7,6 +7,9 @@ const {
     ModalBuilder,
     TextInputBuilder,
     TextInputStyle,
+    LabelBuilder,
+    UserSelectMenuBuilder,
+    FileUploadBuilder,
     PermissionFlagsBits,
 } = require('discord.js');
 
@@ -565,6 +568,81 @@ module.exports = {
 
         // ── Select menu interactions ───────────────────────────────────────────
         if (interaction.isStringSelectMenu()) {
+            // ── Ticket type select (panel dropdown) ────────────────────────────
+            if (interaction.customId === 'ticket_type_select') {
+                const selected = interaction.values[0];
+
+                if (selected === 'general_support') {
+                    const modal = new ModalBuilder()
+                        .setCustomId('ticket_open_modal')
+                        .setTitle('Open a Support Ticket');
+
+                    modal.addComponents(
+                        new ActionRowBuilder().addComponents(
+                            new TextInputBuilder()
+                                .setCustomId('ticket_reason')
+                                .setLabel('What do you need help with?')
+                                .setStyle(TextInputStyle.Paragraph)
+                                .setRequired(true)
+                                .setMaxLength(500)
+                                .setPlaceholder('Briefly describe your issue or question...')
+                        )
+                    );
+
+                    return interaction.showModal(modal);
+                }
+
+                if (selected === 'staff_report') {
+                    const modal = new ModalBuilder()
+                        .setCustomId('staff_report_modal')
+                        .setTitle('Staff Report Submission');
+
+                    modal.addComponents(
+                        new LabelBuilder()
+                            .setLabel('Incident Description')
+                            .setTextInputComponent(
+                                new TextInputBuilder()
+                                    .setCustomId('report_description')
+                                    .setStyle(TextInputStyle.Paragraph)
+                                    .setRequired(true)
+                                    .setMinLength(20)
+                                    .setMaxLength(1000)
+                                    .setPlaceholder('Describe what happened, including what occurred and the circumstances.')
+                            ),
+                        new LabelBuilder()
+                            .setLabel('Reported Individual')
+                            .setUserSelectMenuComponent(
+                                new UserSelectMenuBuilder()
+                                    .setCustomId('reported_user')
+                                    .setRequired(true)
+                                    .setMaxValues(1)
+                                    .setPlaceholder('Select the individual being reported')
+                            ),
+                        new LabelBuilder()
+                            .setLabel('Supporting Evidence (Optional)')
+                            .setFileUploadComponent(
+                                new FileUploadBuilder()
+                                    .setCustomId('evidence_files')
+                                    .setRequired(false)
+                            ),
+                        new LabelBuilder()
+                            .setLabel('Video or Clip URL (Optional)')
+                            .setTextInputComponent(
+                                new TextInputBuilder()
+                                    .setCustomId('clip_url')
+                                    .setStyle(TextInputStyle.Short)
+                                    .setRequired(false)
+                                    .setMaxLength(500)
+                                    .setPlaceholder('https://...')
+                            ),
+                    );
+
+                    return interaction.showModal(modal);
+                }
+
+                return;
+            }
+
             // ── Infraction case select ─────────────────────────────────────────
             if (interaction.customId.startsWith('inf_select:')) {
                 const { PermissionFlagsBits } = require('discord.js');
