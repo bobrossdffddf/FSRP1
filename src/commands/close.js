@@ -123,45 +123,51 @@ async function closeTicket(channel, ticket, closedBy, client) {
     try {
         const { embed, attachment } = await buildTranscript(channel, ticket, closedBy);
 
+        const tasks = [];
+
+        // Send to transcript channel
         if (transcriptChannelId) {
             const transcriptChannel = channel.guild.channels.cache.get(transcriptChannelId);
             if (transcriptChannel) {
-                await transcriptChannel.send({
-                    embeds: [embed],
-                    files: [attachment],
-                }).catch(e => console.warn('[Ticket] Could not send transcript:', e.message));
+                tasks.push(
+                    transcriptChannel.send({ embeds: [embed], files: [attachment] })
+                        .catch(e => console.warn('[Ticket] Could not send transcript:', e.message))
+                );
             }
         }
 
-        // Try to DM the ticket creator
-        try {
-            const creator = await channel.guild.members.fetch(ticket.creatorId).catch(() => null);
-            if (creator) {
-                const dmEmbed = new EmbedBuilder()
-                    .setTitle('Your Ticket Has Been Closed')
-                    .setColor(0x2B2D75)
-                    .setDescription(`Your ticket in **${channel.guild.name}** has been closed.`)
-                    .addFields(
-                        { name: 'Ticket', value: `#${ticket.ticketNumber || channel.name}`, inline: true },
-                        { name: 'Closed By', value: closedBy?.username || 'Staff', inline: true },
-                        { name: 'Reason', value: ticket.reason || 'No reason provided', inline: false },
-                    )
-                    .setTimestamp();
-                await creator.send({ embeds: [dmEmbed], files: [attachment] }).catch(() => {});
-            }
-        } catch {}
+        // DM the ticket creator — run in parallel with transcript send
+        tasks.push((async () => {
+            try {
+                const creator = await channel.guild.members.fetch(ticket.creatorId).catch(() => null);
+                if (creator) {
+                    const dmEmbed = new EmbedBuilder()
+                        .setTitle('Your Ticket Has Been Closed')
+                        .setColor(0x2B2D75)
+                        .setDescription(`Your ticket in **${channel.guild.name}** has been closed.`)
+                        .addFields(
+                            { name: 'Ticket',    value: `#${ticket.ticketNumber || channel.name}`, inline: true },
+                            { name: 'Closed By', value: closedBy?.username || 'Staff',             inline: true },
+                            { name: 'Reason',    value: ticket.reason || 'No reason provided',     inline: false },
+                        )
+                        .setTimestamp();
+                    await creator.send({ embeds: [dmEmbed], files: [attachment] }).catch(() => {});
+                }
+            } catch {}
+        })());
+
+        await Promise.all(tasks);
     } catch (err) {
         console.error('[Ticket] Error building transcript:', err.message);
     }
 
     deleteTicketData(client, channel.id);
 
-    // Delete the channel after a short delay
     setTimeout(() => {
         channel.delete(`Ticket closed by ${closedBy?.username || 'staff'}`).catch(e => {
             console.warn('[Ticket] Could not delete channel:', e.message);
         });
-    }, 3000);
+    }, 2000);
 }
 
 module.exports.closeTicket = closeTicket;

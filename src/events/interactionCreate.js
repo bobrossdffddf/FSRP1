@@ -4,7 +4,7 @@ const { getMainGuildId } = require('../utils/guildConfig');
 const OWNER_ID = '848356730256883744';
 const REQUIRED_ROLE_ID = '1488210128187560169';
 const OWNER_ONLY_COMMANDS = ['git'];
-const SELF_PERMISSIONED_COMMANDS = ['setup', 'infraction', 'promote', 'staffrequest', 'statlookup', 'my-infractions', 'escalate', 'rename', 'close'];
+const SELF_PERMISSIONED_COMMANDS = ['setup', 'infraction', 'promote', 'staffrequest', 'statlookup', 'my-infractions', 'escalate', 'rename', 'close', 'ticket'];
 
 const log = (level, command, message) => {
     const timestamp = new Date().toISOString();
@@ -116,6 +116,24 @@ module.exports = {
 
                     return interaction.editReply({
                         content: `Your ticket has been opened in ${ticketChannel}. Our staff team will be with you shortly.`,
+                    });
+                }
+
+                if (interaction.customId === 'ia_ticket_modal') {
+                    const { createIATicket } = require('./ticketActions');
+                    const reason = interaction.fields.getTextInputValue('ia_reason');
+
+                    await interaction.deferReply({ flags: 64 });
+
+                    const ticketChannel = await createIATicket(interaction, client, reason);
+                    if (!ticketChannel) {
+                        return interaction.editReply({
+                            content: 'Failed to create your IA ticket. Please make sure the bot has permission to manage channels and try again.',
+                        });
+                    }
+
+                    return interaction.editReply({
+                        content: `Your Internal Affairs ticket has been opened in ${ticketChannel}. Our team will review it shortly.`,
                     });
                 }
 

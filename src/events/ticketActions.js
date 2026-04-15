@@ -14,45 +14,46 @@ const {
     ChannelType,
     MessageFlags,
 } = require('discord.js');
-const axios = require('axios');
+const fs   = require('fs');
+const path = require('path');
 
 const { setTicketData, nextTicketNumber } = require('../utils/ticketManager');
 const { getRobloxConnection }             = require('../api/melonly');
 const { getRobloxUser, getRobloxHeadshot } = require('../api/roblox');
 
-const BANNER_URL        = 'https://e93ab161-15bb-4d94-b7df-be43394606f1-00-3kpdmrbsy5j3a.picard.replit.dev/i/0e8ed398-63ef-4570-9a3c-4e11b0c65edf';
+const BANNER_PATH       = path.join(__dirname, '../../assets/banner.png');
+const FOOTER_PATH       = path.join(__dirname, '../../assets/footer.png');
 const BANNER_ATTACH_URL = 'attachment://banner.png';
-const FOOTER_URL        = 'https://e93ab161-15bb-4d94-b7df-be43394606f1-00-3kpdmrbsy5j3a.picard.replit.dev/i/0e8ed398-63ef-4570-9a3c-4e11b0c65edf';
 const FOOTER_ATTACH_URL = 'attachment://footer.png';
 const LOGO_URL          = 'https://i.postimg.cc/T1K1HQCs/FSR-logo-with-tropical-scene.webp';
 const ACCENT            = 0x4B5EFC;
 const CV2_FLAG          = MessageFlags.IsComponentsV2;
 
-// Cached image buffers — null = not yet tried, false = failed/invalid, Buffer = success
+// Cached image buffers — loaded once from disk
 let _bannerBuffer = null;
 let _footerBuffer = null;
 
-async function tryFetchBuffer(url, label) {
+function loadLocalBuffer(filePath, label) {
     try {
-        const res = await axios.get(url, { responseType: 'arraybuffer', timeout: 10000 });
-        const contentType = res.headers['content-type'] ?? '';
-        if (!contentType.startsWith('image/')) {
-            console.warn(`[Ticket] ${label} URL returned non-image content-type: ${contentType}`);
-            return false;
+        if (fs.existsSync(filePath)) {
+            const buf = fs.readFileSync(filePath);
+            console.log(`[Ticket] Loaded ${label} from disk (${buf.length} bytes)`);
+            return buf;
         }
-        return Buffer.from(res.data);
+        console.warn(`[Ticket] ${label} file not found at: ${filePath}`);
+        return false;
     } catch (err) {
-        console.warn(`[Ticket] Could not fetch ${label} image (${url}): ${err.message}`);
+        console.warn(`[Ticket] Could not read ${label} from disk: ${err.message}`);
         return false;
     }
 }
 
-async function getTicketAttachments() {
-    if (_bannerBuffer === null) _bannerBuffer = await tryFetchBuffer(BANNER_URL, 'banner');
-    if (_footerBuffer === null) _footerBuffer = await tryFetchBuffer(FOOTER_URL, 'footer');
+function getTicketAttachments() {
+    if (_bannerBuffer === null) _bannerBuffer = loadLocalBuffer(BANNER_PATH, 'banner');
+    if (_footerBuffer === null) _footerBuffer = loadLocalBuffer(FOOTER_PATH, 'footer');
 
     return {
-        files:     [
+        files: [
             _bannerBuffer ? new AttachmentBuilder(_bannerBuffer, { name: 'banner.png' }) : null,
             _footerBuffer ? new AttachmentBuilder(_footerBuffer, { name: 'footer.png' }) : null,
         ].filter(Boolean),
@@ -304,7 +305,7 @@ async function createTicket(interaction, client, reason) {
         : `${creator}`;
 
     try {
-        const { files, hasBanner, hasFooter } = await getTicketAttachments();
+        const { files, hasBanner, hasFooter } = getTicketAttachments();
 
         const container = buildTicketContainer({
             creatorMention: `${creator}`,
@@ -482,7 +483,7 @@ async function createStaffReportTicket(interaction, client, opts) {
     const ping = supportRoleId ? `${reporter} <@&${supportRoleId}>` : `${reporter}`;
 
     try {
-        const { files, hasBanner, hasFooter } = await getTicketAttachments();
+        const { files, hasBanner, hasFooter } = getTicketAttachments();
 
         const container = buildStaffReportContainer({
             reporterMention: `${reporter}`,
@@ -629,9 +630,263 @@ function buildStaffReportContainer(opts) {
     return container;
 }
 
+// ── Create Internal Affairs Ticket ───────────────────────────────────────────
+
+async function createIATicket(interaction, client, reason) {
+    const guild    = interaction.guild;
+    const creator  = interaction.member;
+    const settings = client.settings.get(guild.id) || {};
+
+    const categoryId    = settings.iaCategoryId || settings.ticketCategoryId;
+    const supportRoleId = settings.ticketSupportRoleId;
+
+    const ticketNum   = nextTicketNumber(client, guild.id);
+    const channelName = `ia-${String(ticketNum).padStart(4, '0')}`;
+
+    const permOverwrites = [
+        { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
+        {
+            id: creator.id,
+            allow: [
+                PermissionFlagsBits.ViewChannel,
+                PermissionFlagsBits.SendMessages,
+                PermissionFlagsBits.ReadMessageHistory,
+                PermissionFlagsBits.AttachFiles,
+            ],
+        },
+        {
+            id: client.user.id,
+            allow: [
+                PermissionFlagsBits.ViewChannel,
+                PermissionFlagsBits.SendMessages,
+                PermissionFlagsBits.ReadMessageHistory,
+                PermissionFlagsBits.ManageChannels,
+                PermissionFlagsBits.ManageMessages,
+                PermissionFlagsBits.AttachFiles,
+            ],
+        },
+    ];
+
+    if (supportRoleId) {
+        permOverwrites.push({
+            id: supportRoleId,
+            allow: [
+                PermissionFlagsBits.ViewChannel,
+                PermissionFlagsBits.SendMessages,
+                PermissionFlagsBits.ReadMessageHistory,
+                PermissionFlagsBits.AttachFiles,
+                PermissionFlagsBits.ManageMessages,
+            ],
+        });
+    }
+
+    let ticketChannel;
+    try {
+        ticketChannel = await guild.channels.create({
+            name: channelName,
+            type: ChannelType.GuildText,
+            parent: categoryId || null,
+            permissionOverwrites: permOverwrites,
+            topic: `Internal Affairs #${ticketNum} | ${creator.user.username} | ${reason}`,
+            reason: `IA Ticket #${ticketNum} by ${creator.user.username}`,
+        });
+    } catch (err) {
+        console.error('[IATicket] Failed to create channel:', err.message);
+        return null;
+    }
+
+    let robloxText   = '*Not found — account may not be linked to Melonly.*';
+    let thumbnailUrl = LOGO_URL;
+
+    try {
+        const verification = await getRobloxConnection(creator.id);
+        if (verification?.robloxId) {
+            const robloxIdStr = verification.robloxId;
+            const headshotUrl = verification.headShotImage?.imageUrl ?? verification.headShotImage?.url ?? null;
+            const [robloxUser, headshot] = await Promise.all([
+                getRobloxUser(robloxIdStr),
+                headshotUrl ? Promise.resolve(headshotUrl) : getRobloxHeadshot(robloxIdStr),
+            ]);
+            if (headshot) thumbnailUrl = headshot;
+            if (robloxUser) {
+                const created = robloxUser.created ? formatDate(new Date(robloxUser.created)) : '—';
+                robloxText =
+                    `**Username:** ${robloxUser.name} (${robloxIdStr})\n` +
+                    `**Display Name:** ${robloxUser.displayName}\n` +
+                    `**Created:** ${created}`;
+            } else {
+                robloxText = `**Roblox ID:** ${robloxIdStr}\n**Username:** *Could not retrieve — Roblox API unavailable*`;
+            }
+        }
+    } catch (err) {
+        console.warn('[IATicket] Roblox lookup failed:', err.message);
+    }
+
+    const welcomeText =
+        `Hi, ${creator}! Thank you for submitting an Internal Affairs ticket. ` +
+        `A member of our Internal Affairs team will review your submission shortly. ` +
+        `Please provide any additional information or evidence related to your submission below.`;
+
+    setTicketData(client, ticketChannel.id, {
+        channelId:       ticketChannel.id,
+        guildId:         guild.id,
+        creatorId:       creator.id,
+        claimedBy:       null,
+        reason:          reason,
+        openedAt:        Date.now(),
+        ticketNumber:    ticketNum,
+        ticketType:      'internal_affairs',
+        escalationLevel: null,
+        robloxText,
+        thumbnailUrl,
+        welcomeText,
+    });
+
+    const ping = supportRoleId ? `${creator} <@&${supportRoleId}>` : `${creator}`;
+
+    try {
+        const { files, hasBanner, hasFooter } = getTicketAttachments();
+
+        const container = buildIAContainer({
+            creatorMention: `${creator}`,
+            robloxText,
+            thumbnailUrl,
+            welcomeText,
+            reason,
+            channelId:      ticketChannel.id,
+            claimed:        false,
+            ping,
+            hasBanner,
+            hasFooter,
+        });
+
+        const sent = await ticketChannel.send({
+            components: [container],
+            files,
+            flags:      CV2_FLAG,
+        });
+
+        setTicketData(client, ticketChannel.id, { ticketMessageId: sent.id });
+    } catch (err) {
+        console.error('[IATicket] Failed to send welcome message:', err.message, err.stack);
+    }
+
+    return ticketChannel;
+}
+
+function buildIAContainer(opts) {
+    const {
+        creatorMention,
+        robloxText,
+        thumbnailUrl,
+        welcomeText,
+        reason,
+        channelId,
+        claimed,
+        claimerMention,
+        ping,
+        hasBanner = false,
+        hasFooter = false,
+    } = opts;
+
+    const robloxSection = new SectionBuilder()
+        .addTextDisplayComponents(
+            new TextDisplayBuilder().setContent(
+                `## Internal Affairs\n**Roblox Information:**\n${robloxText}`
+            )
+        )
+        .setThumbnailAccessory(
+            new ThumbnailBuilder().setURL(thumbnailUrl).setDescription('Roblox')
+        );
+
+    const buttons = claimed
+        ? new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId(`ticket_close_force:${channelId}`)
+                .setLabel('Close')
+                .setStyle(ButtonStyle.Danger)
+                .setEmoji(EMOJI_WARNING),
+            new ButtonBuilder()
+                .setCustomId(`ticket_unclaim:${channelId}`)
+                .setLabel('Unclaim')
+                .setStyle(ButtonStyle.Secondary)
+                .setEmoji(EMOJI_PIN),
+        )
+        : new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId(`ticket_claim:${channelId}`)
+                .setLabel('Claim')
+                .setStyle(ButtonStyle.Success)
+                .setEmoji(EMOJI_STAFF),
+            new ButtonBuilder()
+                .setCustomId(`ticket_close_force:${channelId}`)
+                .setLabel('Close')
+                .setStyle(ButtonStyle.Danger)
+                .setEmoji(EMOJI_WARNING),
+        );
+
+    const container = new ContainerBuilder().setAccentColor(ACCENT);
+
+    if (hasBanner) {
+        container.addMediaGalleryComponents(
+            new MediaGalleryBuilder().addItems([
+                new MediaGalleryItemBuilder().setURL(BANNER_ATTACH_URL),
+            ])
+        );
+    }
+
+    container.addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(1));
+
+    if (ping) {
+        container.addTextDisplayComponents(new TextDisplayBuilder().setContent(ping));
+        container.addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(1));
+    }
+
+    container
+        .addSectionComponents(robloxSection)
+        .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(1))
+        .addTextDisplayComponents(new TextDisplayBuilder().setContent(welcomeText))
+        .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(1))
+        .addTextDisplayComponents(new TextDisplayBuilder().setContent(`**Ticket Reason**\n${reason}`));
+
+    if (claimed && claimerMention) {
+        container.addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(1));
+        container.addTextDisplayComponents(
+            new TextDisplayBuilder().setContent(`-# Claimed by ${claimerMention}`)
+        );
+    }
+
+    container.addSeparatorComponents(new SeparatorBuilder().setDivider(false).setSpacing(1));
+    container.addActionRowComponents(buttons);
+
+    if (hasFooter) {
+        container.addMediaGalleryComponents(
+            new MediaGalleryBuilder().addItems([
+                new MediaGalleryItemBuilder().setURL(FOOTER_ATTACH_URL),
+            ])
+        );
+    }
+
+    return container;
+}
+
 // ── Rebuild for claim / unclaim ───────────────────────────────────────────────
 
 function buildUpdatedContainer(ticket, claimed, claimerMention, { hasBanner = false, hasFooter = false } = {}) {
+    if (ticket.ticketType === 'internal_affairs') {
+        return buildIAContainer({
+            creatorMention: `<@${ticket.creatorId}>`,
+            robloxText:     ticket.robloxText   || '*No roblox info stored.*',
+            thumbnailUrl:   ticket.thumbnailUrl || LOGO_URL,
+            welcomeText:    ticket.welcomeText  || '',
+            reason:         ticket.reason       || 'No reason provided.',
+            channelId:      ticket.channelId,
+            claimed,
+            claimerMention,
+            hasBanner,
+            hasFooter,
+        });
+    }
     return buildTicketContainer({
         creatorMention: `<@${ticket.creatorId}>`,
         robloxText:     ticket.robloxText     || '*No roblox info stored.*',
@@ -666,6 +921,7 @@ function formatRelative(date) {
 module.exports = {
     createTicket,
     createStaffReportTicket,
+    createIATicket,
     buildUpdatedContainer,
     getTicketAttachments,
     CV2_FLAG,

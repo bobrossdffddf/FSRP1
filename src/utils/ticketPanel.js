@@ -1,3 +1,5 @@
+const fs   = require('fs');
+const path = require('path');
 const {
     ContainerBuilder,
     MediaGalleryBuilder,
@@ -9,22 +11,47 @@ const {
     ActionRowBuilder,
     StringSelectMenuBuilder,
     StringSelectMenuOptionBuilder,
+    AttachmentBuilder,
     MessageFlags,
 } = require('discord.js');
 
-const BANNER_URL = 'https://e93ab161-15bb-4d94-b7df-be43394606f1-00-3kpdmrbsy5j3a.picard.replit.dev/i/0e8ed398-63ef-4570-9a3c-4e11b0c65edf';
-const LOGO_URL   = 'https://i.postimg.cc/T1K1HQCs/FSR-logo-with-tropical-scene.webp';
+const BANNER_PATH       = path.join(__dirname, '../../assets/banner.png');
+const LOGO_URL          = 'https://i.postimg.cc/T1K1HQCs/FSR-logo-with-tropical-scene.webp';
+const BANNER_ATTACH_URL = 'attachment://banner.png';
 
 const ACCENT = 0x4B5EFC;
 
+let _bannerBuffer = null;
+
+function getPanelBannerBuffer() {
+    if (_bannerBuffer === null) {
+        try {
+            if (fs.existsSync(BANNER_PATH)) {
+                _bannerBuffer = fs.readFileSync(BANNER_PATH);
+            } else {
+                _bannerBuffer = false;
+            }
+        } catch {
+            _bannerBuffer = false;
+        }
+    }
+    return _bannerBuffer;
+}
+
 function buildTicketPanelContainer() {
-    return new ContainerBuilder()
-        .setAccentColor(ACCENT)
-        .addMediaGalleryComponents(
+    const bannerBuf = getPanelBannerBuffer();
+
+    const container = new ContainerBuilder().setAccentColor(ACCENT);
+
+    if (bannerBuf) {
+        container.addMediaGalleryComponents(
             new MediaGalleryBuilder().addItems([
-                new MediaGalleryItemBuilder().setURL(BANNER_URL),
+                new MediaGalleryItemBuilder().setURL(BANNER_ATTACH_URL),
             ])
-        )
+        );
+    }
+
+    container
         .addSeparatorComponents(
             new SeparatorBuilder().setDivider(true).setSpacing(1)
         )
@@ -62,12 +89,25 @@ function buildTicketPanelContainer() {
                             .setDescription('Submit a formal report regarding a staff member or player')
                             .setValue('staff_report')
                             .setEmoji({ id: '1489218432850464768', name: 'warning' }),
+                        new StringSelectMenuOptionBuilder()
+                            .setLabel('Internal Affairs')
+                            .setDescription('Submit a confidential Internal Affairs report')
+                            .setValue('internal_affairs')
+                            .setEmoji({ id: '1491568422205526118', name: 'staff' }),
                     )
             )
         );
+
+    return container;
+}
+
+function buildTicketPanelFiles() {
+    const bannerBuf = getPanelBannerBuffer();
+    return bannerBuf ? [new AttachmentBuilder(bannerBuf, { name: 'banner.png' })] : [];
 }
 
 module.exports = {
     buildTicketPanelContainer,
+    buildTicketPanelFiles,
     TICKET_FLAGS: MessageFlags.IsComponentsV2,
 };

@@ -6,7 +6,7 @@ const {
 } = require('discord.js');
 
 const { buildPriorityEmbed, buildPriorityRow } = require('../utils/priorityMessage');
-const { buildTicketPanelContainer, TICKET_FLAGS } = require('../utils/ticketPanel');
+const { buildTicketPanelContainer, buildTicketPanelFiles, TICKET_FLAGS } = require('../utils/ticketPanel');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -52,7 +52,9 @@ module.exports = {
         .addChannelOption(option =>
             option.setName('directorship_category').setDescription('[Tickets] Category tickets are moved to on Directorship escalation.').setRequired(false))
         .addChannelOption(option =>
-            option.setName('ownership_category').setDescription('[Tickets] Category tickets are moved to on Ownership escalation.').setRequired(false)),
+            option.setName('ownership_category').setDescription('[Tickets] Category tickets are moved to on Ownership escalation.').setRequired(false))
+        .addChannelOption(option =>
+            option.setName('ia_category').setDescription('[Tickets] Category where Internal Affairs tickets are created.').setRequired(false)),
 
     async execute(interaction, client) {
         if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
@@ -81,12 +83,14 @@ module.exports = {
         const managementCategory      = interaction.options.getChannel('management_category');
         const directorshipCategory    = interaction.options.getChannel('directorship_category');
         const ownershipCategory       = interaction.options.getChannel('ownership_category');
+        const iaCategory              = interaction.options.getChannel('ia_category');
 
         const nothingProvided = !ssuChannel && !pingRole && !logsChannel && !priorityChannel
             && !infractionChannel && !promotionChannel && !staffRequestChannel && !shiftChannel
             && !flagChannel && !flagRole1 && !flagRole2 && !flagRole3
             && !ticketPanelChannel && !ticketCategory && !ticketSupportRole
-            && !ticketTranscriptChannel && !managementCategory && !directorshipCategory && !ownershipCategory;
+            && !ticketTranscriptChannel && !managementCategory && !directorshipCategory
+            && !ownershipCategory && !iaCategory;
 
         if (nothingProvided) {
             const existing = client.settings.get(interaction.guild.id) || {};
@@ -111,6 +115,7 @@ module.exports = {
                     { name: '⬆️ Management Category',      value: existing.managementCategoryId      ? `<#${existing.managementCategoryId}>`      : 'Not configured', inline: true },
                     { name: '⬆️ Directorship Category',    value: existing.directorshipCategoryId    ? `<#${existing.directorshipCategoryId}>`    : 'Not configured', inline: true },
                     { name: '⬆️ Ownership Category',       value: existing.ownershipCategoryId       ? `<#${existing.ownershipCategoryId}>`       : 'Not configured', inline: true },
+                    { name: '🔒 IA Category',               value: existing.iaCategoryId               ? `<#${existing.iaCategoryId}>`               : 'Not configured', inline: true },
                     {
                         name: '📣 Flag Ping Roles',
                         value: existing.flagRoleIds?.length ? existing.flagRoleIds.map(id => `<@&${id}>`).join(' ') : 'Not configured',
@@ -166,12 +171,15 @@ module.exports = {
         if (managementCategory)      updates.managementCategoryId      = managementCategory.id;
         if (directorshipCategory)    updates.directorshipCategoryId    = directorshipCategory.id;
         if (ownershipCategory)       updates.ownershipCategoryId       = ownershipCategory.id;
+        if (iaCategory)              updates.iaCategoryId              = iaCategory.id;
 
         if (ticketPanelChannel) {
             updates.ticketPanelChannelId = ticketPanelChannel.id;
             try {
+                const panelFiles = buildTicketPanelFiles();
                 const sent = await ticketPanelChannel.send({
                     components: [buildTicketPanelContainer()],
+                    files: panelFiles,
                     flags: TICKET_FLAGS,
                 });
                 updates.ticketPanelMessageId = sent.id;
@@ -207,6 +215,7 @@ module.exports = {
                 { name: '⬆️ Management Category',      value: saved.managementCategoryId      ? `<#${saved.managementCategoryId}>`      : 'Not configured', inline: true },
                 { name: '⬆️ Directorship Category',    value: saved.directorshipCategoryId    ? `<#${saved.directorshipCategoryId}>`    : 'Not configured', inline: true },
                 { name: '⬆️ Ownership Category',       value: saved.ownershipCategoryId       ? `<#${saved.ownershipCategoryId}>`       : 'Not configured', inline: true },
+                { name: '🔒 IA Category',               value: saved.iaCategoryId               ? `<#${saved.iaCategoryId}>`               : 'Not configured', inline: true },
                 {
                     name: '📣 Flag Ping Roles',
                     value: saved.flagRoleIds?.length ? saved.flagRoleIds.map(id => `<@&${id}>`).join(' ') : 'Not configured',

@@ -127,7 +127,7 @@ module.exports = {
                 if (freshTicket.ticketMessageId) {
                     const msg = await interaction.channel.messages.fetch(freshTicket.ticketMessageId).catch(() => null);
                     if (msg) {
-                        const { files, hasBanner, hasFooter } = await getTicketAttachments();
+                        const { files, hasBanner, hasFooter } = getTicketAttachments();
                         const container = buildUpdatedContainer(freshTicket, true, `${interaction.user}`, { hasBanner, hasFooter });
                         await msg.edit({ components: [container], files, flags: CV2_FLAG }).catch(e => console.warn('[Claim] edit failed:', e.message));
                     }
@@ -153,7 +153,7 @@ module.exports = {
                 if (freshTicket.ticketMessageId) {
                     const msg = await interaction.channel.messages.fetch(freshTicket.ticketMessageId).catch(() => null);
                     if (msg) {
-                        const { files, hasBanner, hasFooter } = await getTicketAttachments();
+                        const { files, hasBanner, hasFooter } = getTicketAttachments();
                         const container = buildUpdatedContainer(freshTicket, false, null, { hasBanner, hasFooter });
                         await msg.edit({ components: [container], files, flags: CV2_FLAG }).catch(e => console.warn('[Unclaim] edit failed:', e.message));
                     }
@@ -586,6 +586,27 @@ module.exports = {
                                 .setRequired(true)
                                 .setMaxLength(500)
                                 .setPlaceholder('Briefly describe your issue or question...')
+                        )
+                    );
+
+                    return interaction.showModal(modal);
+                }
+
+                if (selected === 'internal_affairs') {
+                    const modal = new ModalBuilder()
+                        .setCustomId('ia_ticket_modal')
+                        .setTitle('Internal Affairs Submission');
+
+                    modal.addComponents(
+                        new ActionRowBuilder().addComponents(
+                            new TextInputBuilder()
+                                .setCustomId('ia_reason')
+                                .setLabel('What is this IA report regarding?')
+                                .setStyle(TextInputStyle.Paragraph)
+                                .setRequired(true)
+                                .setMinLength(10)
+                                .setMaxLength(500)
+                                .setPlaceholder('Briefly describe the nature of your Internal Affairs report...')
                         )
                     );
 

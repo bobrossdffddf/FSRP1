@@ -1,36 +1,43 @@
-/**
- * Transcript Builder — collects all messages from a ticket channel
- * and formats them into a readable text-based transcript sent as a file.
- */
-
 const { AttachmentBuilder, EmbedBuilder } = require('discord.js');
 
 async function buildTranscript(channel, ticketData, closedBy) {
     const messages = [];
-    let lastId = null;
 
-    // Fetch all messages (Discord limits 100 per request)
+    // Use cached messages as a starting point to avoid redundant API calls
+    if (channel.messages.cache.size > 0) {
+        messages.push(...channel.messages.cache.values());
+    }
+
+    // Determine the oldest message ID we already have
+    let oldestCachedId = messages.length > 0
+        ? messages.reduce((a, b) => (a.createdTimestamp < b.createdTimestamp ? a : b)).id
+        : null;
+
+    // Fetch any messages older than what we have cached
     while (true) {
         const options = { limit: 100 };
-        if (lastId) options.before = lastId;
+        if (oldestCachedId) options.before = oldestCachedId;
 
         const fetched = await channel.messages.fetch(options).catch(() => null);
         if (!fetched || fetched.size === 0) break;
 
-        messages.push(...fetched.values());
-        lastId = fetched.last()?.id;
+        const newMessages = [...fetched.values()].filter(m => !channel.messages.cache.has(m.id));
+        messages.push(...newMessages);
+
+        oldestCachedId = fetched.last()?.id;
         if (fetched.size < 100) break;
     }
 
-    // Sort oldest first
-    messages.sort((a, b) => a.createdTimestamp - b.createdTimestamp);
+    // Sort oldest first, de-duplicate
+    const unique = [...new Map(messages.map(m => [m.id, m])).values()];
+    unique.sort((a, b) => a.createdTimestamp - b.createdTimestamp);
 
     // Format into text
     const lines = [];
     lines.push('═══════════════════════════════════════════════════════');
     lines.push(`  TICKET TRANSCRIPT — #${channel.name}`);
     lines.push(`  Ticket #${ticketData.ticketNumber || '?'}`);
-    lines.push(`  Opened By: ${ticketData.creatorId ? `User ${ticketData.creatorId}` : 'Unknown'}`);
+    lines.push(`  Opened By: ${ticketData.creatorId ? `<@${ticketData.creatorId}>` : 'Unknown'}`);
     lines.push(`  Closed By: ${closedBy?.username || 'Unknown'}`);
     lines.push(`  Opened At: ${ticketData.openedAt ? new Date(ticketData.openedAt).toUTCString() : 'Unknown'}`);
     lines.push(`  Closed At: ${new Date().toUTCString()}`);
@@ -38,12 +45,12 @@ async function buildTranscript(channel, ticketData, closedBy) {
     lines.push('═══════════════════════════════════════════════════════');
     lines.push('');
 
-    for (const msg of messages) {
-        if (msg.author.bot && messages.indexOf(msg) === 0) continue;
-        const time = msg.createdAt.toUTCString();
-        const author = `${msg.author.username}${msg.author.bot ? ' [BOT]' : ''}`;
-        const content = msg.content || '';
-        const embeds = msg.embeds.length > 0 ? `[${msg.embeds.length} embed(s)]` : '';
+    for (const msg of unique) {
+        if (msg.author.bot && unique.indexOf(msg) === 0) continue;
+        const time        = msg.createdAt.toUTCString();
+        const author      = `${msg.author.username}${msg.author.bot ? ' [BOT]' : ''}`;
+        const content     = msg.content || '';
+        const embeds      = msg.embeds.length > 0 ? `[${msg.embeds.length} embed(s)]` : '';
         const attachments = msg.attachments.size > 0
             ? [...msg.attachments.values()].map(a => `[Attachment: ${a.url}]`).join(' ')
             : '';
@@ -66,11 +73,11 @@ async function buildTranscript(channel, ticketData, closedBy) {
         .setTitle(`📄 Ticket Transcript — #${channel.name}`)
         .setColor(0x2B2D75)
         .addFields(
-            { name: 'Ticket Number', value: `#${ticketData.ticketNumber || '?'}`, inline: true },
-            { name: 'Opened By', value: `<@${ticketData.creatorId}>`, inline: true },
-            { name: 'Closed By', value: `${closedBy || 'Unknown'}`, inline: true },
-            { name: 'Ticket Reason', value: ticketData.reason || 'No reason provided', inline: false },
-            { name: 'Total Messages', value: `${messages.length}`, inline: true },
+            { name: 'Ticket Number', value: `#${ticketData.ticketNumber || '?'}`,         inline: true },
+            { name: 'Opened By',     value: `<@${ticketData.creatorId}>`,                 inline: true },
+            { name: 'Closed By',     value: `${closedBy?.username || 'Unknown'}`,         inline: true },
+            { name: 'Ticket Reason', value: ticketData.reason || 'No reason provided',    inline: false },
+            { name: 'Total Messages',value: `${unique.length}`,                           inline: true },
         )
         .setTimestamp()
         .setFooter({ text: 'Ticket System' });

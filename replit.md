@@ -19,7 +19,9 @@ This is a Discord bot ("larp-bot") that provides slash commands and event handli
   - `infraction.js` - `/infraction` — Staff infraction system (HR role only, auto-generates INF-XXXXXX IDs)
   - `promote.js` - `/promote` — Staff promotion embeds (HR role only)
   - `staffrequest.js` - `/staffrequest` — Game Assistance requests with Respond/Join buttons, pings Staff Team
-  - `setup.js` - `/setup` (Admin only) — configures all channels (SSU, logs, priority, infraction, promotion, staffrequest, shift)
+  - `setup.js` - `/setup` (Admin only) — configures all channels (SSU, logs, priority, infraction, promotion, staffrequest, shift, ticket system, IA category)
+  - `ticket.js` - `/ticket add <user>` / `/ticket remove <user>` — add or remove a user from the current ticket channel (claimer/staff only)
+  - `close.js` - `/close now` / `/close request` — close tickets, parallelised transcript+DM for faster processing
   - `erlc.js` - `/erlc` - run in-game ERLC server commands
   - `playerlist.js` - `/playerlist` - display server player list
   - `emoji.js` / `git.js` / `hardcode.js` - utility commands
