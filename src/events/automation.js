@@ -1,5 +1,6 @@
 const { Events, PermissionFlagsBits, ActivityType } = require('discord.js');
 const { getPlayers, getServerInfo, runCommand, getPlayerName, getPlayerId } = require('../api/erlc');
+const { getBypasses } = require('../commands/hardcode');
 
 const vcWarnings = new Map();
 const commsWarnings = new Map();
@@ -132,9 +133,12 @@ async function runChecks(client) {
     const queuePlayers = Number(serverInfo?.QueuePlayers || 0);
     updateBotPresence(client, inGamePlayers.length, queuePlayers);
 
-    const hardcodeBypasses = client.settings.get('hardcodeBypasses') || [];
+    // Hardcode bypasses are stored per-guild under client.settings[guildId].hardcodeBypasses
+    // — read via the helper so we don't hit the wrong enmap key.
+    const hardcodeBypasses = getBypasses(client, guildId);
+    const bypassSet = new Set(hardcodeBypasses.map(v => String(v).toLowerCase()));
 
-    console.log(`[Checks] Active Players: ${inGamePlayers.length} | Guild Cache: ${guild.members.cache.size}`);
+    console.log(`[Checks] Active Players: ${inGamePlayers.length} | Guild Cache: ${guild.members.cache.size} | Bypasses: ${bypassSet.size}`);
 
     // Buckets for batched ERLC commands
     const vcWarnPlayers   = [];
@@ -147,7 +151,7 @@ async function runChecks(client) {
         const robloxId = getPlayerId(player.Player);
         const member = findDiscordMember(guild, robloxUsername);
 
-        if (hardcodeBypasses.includes(robloxUsername) || hardcodeBypasses.includes(robloxId)) {
+        if (bypassSet.has(String(robloxUsername).toLowerCase()) || bypassSet.has(String(robloxId).toLowerCase())) {
             vcWarnings.delete(robloxUsername);
             commsWarnings.delete(robloxUsername);
             continue;

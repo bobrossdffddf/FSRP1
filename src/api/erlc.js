@@ -1,7 +1,9 @@
 const axios = require('axios');
 const https = require('https');
 
-const API_BASE = 'https://api.policeroleplay.community/v1/server';
+// PRC API v2 (v1 is retired and now returns HTTP 410).
+// See: https://policeroleplaycommunity.gitbook.io/d/for-developers/v2-api-reference
+const API_BASE = 'https://api.policeroleplay.community/v2/server';
 
 const agent = new https.Agent({
     keepAlive: false,
@@ -46,8 +48,14 @@ function checkKey() {
 async function getServerInfo() {
     checkKey();
     try {
-        const res = await erlcApi.get('/');
-        return res.data;
+        // v2 returns Queue as an array; map its length to QueuePlayers for
+        // backward compatibility with existing callers (automation.js etc.).
+        const res = await erlcApi.get('/', { params: { Queue: true } });
+        const data = res.data || {};
+        return {
+            ...data,
+            QueuePlayers: Array.isArray(data.Queue) ? data.Queue.length : 0,
+        };
     } catch (error) {
         console.error('Error fetching ERLC server info:', error.message);
         return null;
@@ -57,8 +65,9 @@ async function getServerInfo() {
 async function getPlayers() {
     checkKey();
     try {
-        const res = await erlcApi.get('/players');
-        return res.data;
+        // v2: the /players endpoint is gone; ask /server for Players inline.
+        const res = await erlcApi.get('/', { params: { Players: true } });
+        return Array.isArray(res.data?.Players) ? res.data.Players : [];
     } catch (error) {
         console.error('Error fetching ERLC players:', error.message);
         return [];
@@ -113,8 +122,9 @@ async function jailPlayer(player, reason = '') {
 async function getModCalls() {
     checkKey();
     try {
-        const res = await erlcApi.get('/modcalls');
-        return Array.isArray(res.data) ? res.data : [];
+        // v2: the /modcalls endpoint is gone; ask /server for ModCalls inline.
+        const res = await erlcApi.get('/', { params: { ModCalls: true } });
+        return Array.isArray(res.data?.ModCalls) ? res.data.ModCalls : [];
     } catch (error) {
         console.warn('Error fetching ERLC mod calls:', error.message);
         return [];
