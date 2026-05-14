@@ -1,0 +1,71 @@
+[dotenv@17.3.1] injecting env (0) from .env -- tip: ⚙️  override existing env vars with { override: true }
+Polling Manager: Ready. Starting loops...
+Ready! Logged in as LARP Server Managment.#7291
+[Checks] Active Players: 0 | Guild Cache: 1
+[Checks] Active Players: 0 | Guild Cache: 1
+[Checks] Active Players: 0 | Guild Cache: 1
+[Checks] Active Players: 0 | Guild Cache: 1
+[Checks] Active Players: 0 | Guild Cache: 1
+[CMD] 3/10/2026, 6:00:57 PM | /playerlist | by justawacko_ (848356730256883744) | in #🤖・cmds | options: none
+[Checks] Active Players: 0 | Guild Cache: 2
+[CMD] Error in /playerlist: DiscordAPIError[10062]: Unknown interaction
+    at handleErrors (/home/runner/workspace/node_modules/@discordjs/rest/dist/index.js:762:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async BurstHandler.runRequest (/home/runner/workspace/node_modules/@discordjs/rest/dist/index.js:866:23)
+    at async _REST.request (/home/runner/workspace/node_modules/@discordjs/rest/dist/index.js:1307:22)
+    at async ChatInputCommandInteraction.deferReply (/home/runner/workspace/node_modules/discord.js/src/structures/interfaces/InteractionResponses.js:122:22)
+    at async Object.execute (/home/runner/workspace/src/commands/playerlist.js:11:9)
+    at async Object.execute (/home/runner/workspace/src/events/interactionCreate.js:66:17) {
+  requestBody: { files: undefined, json: { type: 5, data: [Object] } },
+  rawError: { message: 'Unknown interaction', code: 10062 },
+  code: 10062,
+  status: 404,
+  method: 'POST',
+  url: 'https://discord.com/api/v10/interactions/1480988850489659512/aW50ZXJhY3Rpb246MTQ4MDk4ODg1MDQ4OTY1OTUxMjpPV1I2bFlZTG9xR2U1OVNGTTZuUHRpdjE1TUhocm1hMFg5ekdGWXZhdW1TbzJlVlJ1RVZNbVd5VWhxbDEzNFFXRGFFdmZyaFd0eFB5eDF1d3RlMnVYTnZZTHQ0QjVCaXlxVlJPdDNjVVc0NU1TNTFqcjJ0QXBsdkVtdzhQampsbw/callback?with_response=false'
+}
+node:events:502
+      throw er; // Unhandled 'error' event
+      ^
+
+DiscordAPIError[10062]: Unknown interaction
+    at handleErrors (/home/runner/workspace/node_modules/@discordjs/rest/dist/index.js:762:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async BurstHandler.runRequest (/home/runner/workspace/node_modules/@discordjs/rest/dist/index.js:866:23)
+    at async _REST.request (/home/runner/workspace/node_modules/@discordjs/rest/dist/index.js:1307:22)
+    at async ChatInputCommandInteraction.reply (/home/runner/workspace/node_modules/discord.js/src/structures/interfaces/InteractionResponses.js:193:22)
+    at async Object.execute (/home/runner/workspace/src/events/interactionCreate.js:72:21)
+Emitted 'error' event on Client instance at:
+    at emitUnhandledRejectionOrErr (node:events:407:10)
+    at process.processTicksAndRejections (node:internal/process/task_queues:84:21) {
+  requestBody: {
+    files: [],
+    json: {
+      type: 4,
+      data: {
+        content: 'There was an error while executing this command!',
+        tts: false,
+        nonce: undefined,
+        enforce_nonce: false,
+        embeds: undefined,
+        components: undefined,
+        username: undefined,
+        avatar_url: undefined,
+        allowed_mentions: undefined,
+        flags: 64,
+        message_reference: undefined,
+        attachments: undefined,
+        sticker_ids: undefined,
+        thread_name: undefined,
+        applied_tags: undefined,
+        poll: undefined
+      }
+    }
+  },
+  rawError: { message: 'Unknown interaction', code: 10062 },
+  code: 10062,
+  status: 404,
+  method: 'POST',
+  url: 'https://discord.com/api/v10/interactions/1480988850489659512/aW50ZXJhY3Rpb246MTQ4MDk4ODg1MDQ4OTY1OTUxMjpPV1I2bFlZTG9xR2U1OVNGTTZuUHRpdjE1TUhocm1hMFg5ekdGWXZhdW1TbzJlVlJ1RVZNbVd5VWhxbDEzNFFXRGFFdmZyaFd0eFB5eDF1d3RlMnVYTnZZTHQ0QjVCaXlxVlJPdDNjVVc0NU1TNTFqcjJ0QXBsdkVtdzhQampsbw/callback?with_response=false'
+}
+
+Node.js v20.20.0

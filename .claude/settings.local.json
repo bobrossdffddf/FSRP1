@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code} %{content_type} %{size_download}\" \"https://e93ab161-15bb-4d94-b7df-be43394606f1-00-3kpdmrbsy5j3a.picard.replit.dev/i/0e8ed398-63ef-4570-9a3c-4e11b0c65edf\")"
+    ]
+  }
+}

@@ -1,0 +1,28 @@
+[Checks] Active Players: 0 | Guild Cache: 6
+[2026-03-14T19:57:49.847Z] [INFO] [CMD:citation] Executed by justawacko_ (848356730256883744) in #「📫」support [justawacko_'s server] | options: remove:undefined
+[2026-03-14T19:57:49.852Z] [ERROR] [CMD:citation] Execution failed: client.citations.forEach is not a function
+TypeError: client.citations.forEach is not a function
+    at findCitationById (/home/runner/workspace/src/commands/citation.js:110:22)
+    at Object.execute (/home/runner/workspace/src/commands/citation.js:278:27)
+    at Object.execute (/home/runner/workspace/src/events/interactionCreate.js:161:35)
+    at Client.<anonymous> (/home/runner/workspace/index.js:59:50)
+    at Client.emit (node:events:536:35)
+    at InteractionCreateAction.handle (/home/runner/workspace/node_modules/discord.js/src/client/actions/InteractionCreate.js:101:12)
+    at module.exports [as INTERACTION_CREATE] (/home/runner/workspace/node_modules/discord.js/src/client/websocket/handlers/INTERACTION_CREATE.js:4:36)
+    at WebSocketManager.handlePacket (/home/runner/workspace/node_modules/discord.js/src/client/websocket/WebSocketManager.js:352:31)
+    at WebSocketManager.<anonymous> (/home/runner/workspace/node_modules/discord.js/src/client/websocket/WebSocketManager.js:236:12)
+    at WebSocketManager.emit (/home/runner/workspace/node_modules/@vladfrangu/async_event_emitter/dist/index.cjs:2504:31)
+[Checks] Active Players: 0 | Guild Cache: 6
+[2026-03-14T19:58:06.172Z] [INFO] [CMD:citation] Executed by justawacko_ (848356730256883744) in #「📫」support [justawacko_'s server] | options: remove:undefined
+[2026-03-14T19:58:06.174Z] [ERROR] [CMD:citation] Execution failed: client.citations.forEach is not a function
+TypeError: client.citations.forEach is not a function
+    at findCitationById (/home/runner/workspace/src/commands/citation.js:110:22)
+    at Object.execute (/home/runner/workspace/src/commands/citation.js:278:27)
+    at Object.execute (/home/runner/workspace/src/events/interactionCreate.js:161:35)
+    at Client.<anonymous> (/home/runner/workspace/index.js:59:50)
+    at Client.emit (node:events:536:35)
+    at InteractionCreateAction.handle (/home/runner/workspace/node_modules/discord.js/src/client/actions/InteractionCreate.js:101:12)
+    at module.exports [as INTERACTION_CREATE] (/home/runner/workspace/node_modules/discord.js/src/client/websocket/handlers/INTERACTION_CREATE.js:4:36)
+    at WebSocketManager.handlePacket (/home/runner/workspace/node_modules/discord.js/src/client/websocket/WebSocketManager.js:352:31)
+    at WebSocketManager.<anonymous> (/home/runner/workspace/node_modules/discord.js/src/client/websocket/WebSocketManager.js:236:12)
+    at WebSocketManager.emit (/home/runner/workspace/node_modules/@vladfrangu/async_event_emitter/dist/index.cjs:2504:31)

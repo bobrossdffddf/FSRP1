@@ -1,0 +1,188 @@
+> ## Documentation Index
+> Fetch the complete documentation index at: https://apidocs.melonly.xyz/llms.txt
+> Use this file to discover all available pages before exploring further.
+
+# Rate Limits
+
+> Request quotas and throttling policies for the Melonly API
+
+Requests are managed on a fixed quota system with different limits based on your server configuration.
+
+***
+
+## Standard Rate Limits
+
+All servers receive a base allocation of API requests with standard throttling policies.
+
+| Header                  | Value | Meaning                                                 |
+| ----------------------- | ----- | ------------------------------------------------------- |
+| `X-RateLimit-Limit`     | 1000  | Maximum requests allowed per hour                       |
+| `X-RateLimit-Remaining` | 847   | Requests remaining in current window                    |
+| `X-RateLimit-Used`      | 153   | Requests consumed in current window                     |
+| `X-RateLimit-Reset`     | 3600  | Seconds until rate limit window resets                  |
+| `Retry-After`           | 1     | Seconds to wait before next request (when rate limited) |
+
+<Info>
+  Rate limits are calculated per server on every request. Each server operates independently with its own quota allocation.
+</Info>
+
+***
+
+## Premium Rate Limits
+
+Servers with premium subscriptions receive enhanced rate limits and priority processing.
+
+| Header                  | Value | Meaning                                                 |
+| ----------------------- | ----- | ------------------------------------------------------- |
+| `X-RateLimit-Limit`     | 5000  | Maximum requests allowed per hour                       |
+| `X-RateLimit-Remaining` | 4723  | Requests remaining in current window                    |
+| `X-RateLimit-Used`      | 277   | Requests consumed in current window                     |
+| `X-RateLimit-Reset`     | 2890  | Seconds until rate limit window resets                  |
+| `X-RateLimit-Window`    | 3600  | Duration of rate limit window (always 1 hour)           |
+| `Retry-After`           | 1     | Seconds to wait before next request (when rate limited) |
+
+<Warning>
+  Premium limits are subject to fair usage policies. Sustained high-volume usage may require additional rate limit discussions.
+</Warning>
+
+***
+
+## Rate Limit Headers
+
+All API responses include rate limiting headers to help you manage request flow:
+
+<Tabs>
+  <Tab title="Standard Response">
+    ```http  theme={null}
+    HTTP/1.1 200 OK
+    X-RateLimit-Limit: 1000
+    X-RateLimit-Remaining: 847
+    X-RateLimit-Used: 153
+    X-RateLimit-Reset: 3600
+    Content-Type: application/json
+
+    {
+      "id": "server_12345",
+      "name": "Example Server"
+    }
+    ```
+  </Tab>
+
+  <Tab title="Rate Limited Response">
+    ```http  theme={null}
+    HTTP/1.1 429 Too Many Requests
+    X-RateLimit-Limit: 1000
+    X-RateLimit-Remaining: 0
+    X-RateLimit-Used: 1000
+    X-RateLimit-Reset: 2847
+    Retry-After: 1
+    Content-Type: application/json
+
+    {
+      "error": "rate limit exceeded"
+    }
+    ```
+  </Tab>
+</Tabs>
+
+***
+
+## Handling Rate Limits
+
+<CodeGroup>
+  ```javascript JavaScript theme={null}
+  async function apiRequest(url, options = {}) {
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        'Authorization': 'Bearer your_token',
+        ...options.headers
+      }
+    });
+    
+    if (response.status === 429) {
+      const retryAfter = response.headers.get('Retry-After');
+      console.log(`Rate limited. Retry after ${retryAfter} seconds`);
+      
+      // Wait and retry
+      await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
+      return apiRequest(url, options);
+    }
+    
+    return response;
+  }
+  ```
+
+  ```python Python theme={null}
+  import requests
+  import time
+
+  def api_request(url, headers=None):
+      if headers is None:
+          headers = {'Authorization': 'Bearer your_token'}
+      
+      response = requests.get(url, headers=headers)
+      
+      if response.status_code == 429:
+          retry_after = int(response.headers.get('Retry-After', 1))
+          print(f"Rate limited. Waiting {retry_after} seconds...")
+          
+          time.sleep(retry_after)
+          return api_request(url, headers)
+      
+      return response
+  ```
+
+  ```go Go theme={null}
+  func apiRequest(url string, token string) (*http.Response, error) {
+      req, _ := http.NewRequest("GET", url, nil)
+      req.Header.Set("Authorization", "Bearer "+token)
+      
+      client := &http.Client{}
+      resp, err := client.Do(req)
+      
+      if err != nil {
+          return nil, err
+      }
+      
+      if resp.StatusCode == 429 {
+          retryAfter := resp.Header.Get("Retry-After")
+          if seconds, err := strconv.Atoi(retryAfter); err == nil {
+              time.Sleep(time.Duration(seconds) * time.Second)
+              return apiRequest(url, token)
+          }
+      }
+      
+      return resp, nil
+  }
+  ```
+</CodeGroup>
+
+***
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Monitor Headers" icon="chart-line">
+    Always check rate limit headers in responses to proactively manage request flow
+  </Card>
+
+  <Card title="Implement Backoff" icon="clock">
+    Use exponential backoff strategies for handling 429 responses
+  </Card>
+
+  <Card title="Batch Operations" icon="layer-group">
+    Group related requests and use pagination efficiently to minimize API calls
+  </Card>
+
+  <Card title="Cache Responses" icon="database">
+    Cache frequently accessed data to reduce unnecessary API requests
+  </Card>
+</CardGroup>
+
+<Tip>
+  **Rate Limit Planning:** For high-volume integrations, monitor your usage patterns and consider implementing request queuing to stay within limits consistently.
+</Tip>
+
+
+Built with [Mintlify](https://mintlify.com).
