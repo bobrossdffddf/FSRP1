@@ -208,8 +208,8 @@ async function runChecks(client) {
     const batchTasks = [];
     if (vcWarnPlayers.length > 0) batchTasks.push(batchPm(vcWarnPlayers, `You are in our comms but not in a Voice Channel${punc} Please join a VC to continue RPing${punc}`));
     if (vcJailPlayers.length > 0) batchTasks.push(batchJail(vcJailPlayers, `Not in a voice channel${punc}`));
-    if (commsWarnPlayers.length > 0) batchTasks.push(batchPm(commsWarnPlayers, `You are not in our comms server${punc} Please join or you will be jailed${punc}`));
-    if (commsJailPlayers.length > 0) batchTasks.push(batchJail(commsJailPlayers, `Not in the comms server${punc}`));
+    if (commsWarnPlayers.length > 0) batchTasks.push(batchPm(commsWarnPlayers, `You are not in our comms server${punc} Please join with code fsrp2 or you will be jailed${punc}`));
+    if (commsJailPlayers.length > 0) batchTasks.push(batchJail(commsJailPlayers, `Not in the comms server (code: fsrp2)${punc}`));
     
     if (batchTasks.length > 0) await Promise.all(batchTasks).catch(e => console.error('[Batch] Command error:', e.message));
 
@@ -254,5 +254,8 @@ function updateBotPresence(client, inGameCount, queueCount) {
     const commsMemberCount = guild.memberCount || guild.members.cache.size;
     client.user.setActivity(`${commsMemberCount} people in FSRP`, {
         type: ActivityType.Watching,
+    });
+}
+ivityType.Watching,
     });
 }
