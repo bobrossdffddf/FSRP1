@@ -1,5 +1,6 @@
 const { Events, PermissionFlagsBits, ActivityType } = require('discord.js');
 const { getPlayers, getServerInfo, runCommand, getPlayerName, getPlayerId } = require('../api/erlc');
+const { getBypasses } = require('../commands/hardcode');
 
 const vcWarnings = new Map();
 const commsWarnings = new Map();
@@ -123,19 +124,20 @@ async function runChecks(client) {
         return;
     }
 
-    const inGamePlayersResponse = await getPlayers();
+    const [inGamePlayersResponse, serverInfo] = await Promise.all([getPlayers(), getServerInfo()]);
     if (!inGamePlayersResponse) {
         console.log('[Checks] Failed to fetch players from API');
         return;
     }
     const inGamePlayers = Array.isArray(inGamePlayersResponse) ? inGamePlayersResponse : [];
-    const serverInfo = await getServerInfo();
     const queuePlayers = Number(serverInfo?.QueuePlayers || 0);
-    updateBotPresence(client, guild, inGamePlayers.length, queuePlayers);
 
-    const hardcodeBypasses = client.settings.get(guild.id, 'hardcodeBypasses') || [];
+    // Hardcode bypasses are stored per-guild under client.settings[guildId].hardcodeBypasses
+    // — read via the helper so we don't hit the wrong enmap key.
+    const hardcodeBypasses = getBypasses(client, guildId);
+    const bypassSet = new Set(hardcodeBypasses.map(v => String(v).toLowerCase()));
 
-    console.log(`[Checks] Active Players: ${inGamePlayers.length} | Guild Cache: ${guild.members.cache.size}`);
+    console.log(`[Checks] Active Players: ${inGamePlayers.length} | Guild Cache: ${guild.members.cache.size} | Bypasses: ${bypassSet.size}`);
 
     // Buckets for batched ERLC commands
     const vcWarnPlayers   = [];
@@ -148,7 +150,7 @@ async function runChecks(client) {
         const robloxId = getPlayerId(player.Player);
         const member = findDiscordMember(guild, robloxUsername);
 
-        if (hardcodeBypasses.includes(robloxUsername) || hardcodeBypasses.includes(robloxId)) {
+        if (bypassSet.has(String(robloxUsername).toLowerCase()) || bypassSet.has(String(robloxId).toLowerCase())) {
             vcWarnings.delete(robloxUsername);
             commsWarnings.delete(robloxUsername);
             continue;
@@ -200,26 +202,23 @@ async function runChecks(client) {
         }
     }
 
-    // Fire all batched commands (one per action type, no per-player sleep needed)
+    // Fire all batched commands in parallel
     const punc = endPunc();
-    if (vcWarnPlayers.length > 0) {
-        await batchPm(vcWarnPlayers, `You are in our comms but not in a Voice Channel${punc} Please join a VC to continue RPing${punc}`);
-    }
-    if (vcJailPlayers.length > 0) {
-        await batchJail(vcJailPlayers, `Not in a voice channel${punc}`);
-    }
-    if (commsWarnPlayers.length > 0) {
-        await batchPm(commsWarnPlayers, `You are not in our comms server${punc} Please join or you will be jailed${punc}`);
-    }
-    if (commsJailPlayers.length > 0) {
-        await batchJail(commsJailPlayers, `Not in the comms server${punc}`);
-    }
+    const batchTasks = [];
+    if (vcWarnPlayers.length > 0) batchTasks.push(batchPm(vcWarnPlayers, `You are in our comms but not in a Voice Channel${punc} Please join a VC to continue RPing${punc}`));
+    if (vcJailPlayers.length > 0) batchTasks.push(batchJail(vcJailPlayers, `Not in a voice channel${punc}`));
+    if (commsWarnPlayers.length > 0) batchTasks.push(batchPm(commsWarnPlayers, `You are not in our comms server${punc} Please join with code fsrp2 or you will be jailed${punc}`));
+    if (commsJailPlayers.length > 0) batchTasks.push(batchJail(commsJailPlayers, `Not in the comms server (code: fsrp2)${punc}`));
+    
+    if (batchTasks.length > 0) await Promise.all(batchTasks).catch(e => console.error('[Batch] Command error:', e.message));
 
     // Summary log for the cycle
     const actionCount = vcWarnPlayers.length + vcJailPlayers.length + commsWarnPlayers.length + commsJailPlayers.length;
     if (actionCount > 0) {
         console.log(`[Checks] Cycle complete — VC warns: ${vcWarnPlayers.length}, VC jails: ${vcJailPlayers.length}, Comms warns: ${commsWarnPlayers.length}, Comms jails: ${commsJailPlayers.length}`);
     }
+
+    updateBotPresence(client, guild, inGamePlayers.length, queuePlayers);
 
     const inGameUsernames = inGamePlayers.map(p => normalizeString(getPlayerName(p.Player)));
 

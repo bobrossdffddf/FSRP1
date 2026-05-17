@@ -1,7 +1,13 @@
 const axios = require('axios');
 const https = require('https');
 
-const API_BASE = 'https://api.policeroleplay.community/v1/server';
+// ER:LC API. The legacy api.policeroleplay.community host is deprecated
+// and now returns HTTP 410 for the player/server endpoints. The current
+// host is api.erlc.gg:
+//   GET  /v2/server         — server info with optional Players/Queue/etc.
+//   POST /v1/server/command — run an in-game command
+// See: https://apidocs.erlc.gg
+const API_BASE = 'https://api.erlc.gg';
 
 const agent = new https.Agent({
     keepAlive: false,
@@ -46,8 +52,14 @@ function checkKey() {
 async function getServerInfo() {
     checkKey();
     try {
-        const res = await erlcApi.get('/');
-        return res.data;
+        // v2 returns Queue as an array; map its length to QueuePlayers for
+        // backward compatibility with existing callers (automation.js etc.).
+        const res = await erlcApi.get('/v2/server', { params: { Queue: true } });
+        const data = res.data || {};
+        return {
+            ...data,
+            QueuePlayers: Array.isArray(data.Queue) ? data.Queue.length : 0,
+        };
     } catch (error) {
         console.error('Error fetching ERLC server info:', error.message);
         return null;
@@ -57,8 +69,8 @@ async function getServerInfo() {
 async function getPlayers() {
     checkKey();
     try {
-        const res = await erlcApi.get('/players');
-        return res.data;
+        const res = await erlcApi.get('/v2/server', { params: { Players: true } });
+        return Array.isArray(res.data?.Players) ? res.data.Players : [];
     } catch (error) {
         console.error('Error fetching ERLC players:', error.message);
         return [];
@@ -71,7 +83,8 @@ async function runCommand(command) {
     const maxAttempts = 3;
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         try {
-            const res = await erlcApi.post('/command', { command });
+            // Command endpoint still lives under /v1.
+            const res = await erlcApi.post('/v1/server/command', { command });
             return res.data;
         } catch (error) {
             const status = error.response?.status;
@@ -113,8 +126,8 @@ async function jailPlayer(player, reason = '') {
 async function getModCalls() {
     checkKey();
     try {
-        const res = await erlcApi.get('/modcalls');
-        return Array.isArray(res.data) ? res.data : [];
+        const res = await erlcApi.get('/v2/server', { params: { ModCalls: true } });
+        return Array.isArray(res.data?.ModCalls) ? res.data.ModCalls : [];
     } catch (error) {
         console.warn('Error fetching ERLC mod calls:', error.message);
         return [];

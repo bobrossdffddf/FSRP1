@@ -7,9 +7,6 @@ const {
     ModalBuilder,
     TextInputBuilder,
     TextInputStyle,
-    LabelBuilder,
-    UserSelectMenuBuilder,
-    FileUploadBuilder,
     PermissionFlagsBits,
 } = require('discord.js');
 
@@ -22,9 +19,6 @@ const {
     handlePriorityDeny,
 } = require('./priorityHandler');
 const { activeFlags, consecutiveBadScans } = require('./shiftMonitor');
-const { getTicketData, setTicketData } = require('../utils/ticketManager');
-const { buildUpdatedContainer, getTicketAttachments, CV2_FLAG } = require('./ticketActions');
-const { closeTicket } = require('../commands/close');
 
 const isHardcodeComponent = interaction => {
     if (!interaction.customId) return false;
@@ -79,164 +73,6 @@ module.exports = {
     async execute(interaction, client) {
         // ── Button interactions ────────────────────────────────────────────────
         if (interaction.isButton()) {
-            // ── Ticket: Open (show modal) ─────────────────────────────────────
-            if (interaction.customId === 'ticket_open') {
-                const modal = new ModalBuilder()
-                    .setCustomId('ticket_open_modal')
-                    .setTitle('Open a Support Ticket');
-
-                modal.addComponents(
-                    new ActionRowBuilder().addComponents(
-                        new TextInputBuilder()
-                            .setCustomId('ticket_reason')
-                            .setLabel('What do you need help with?')
-                            .setStyle(TextInputStyle.Paragraph)
-                            .setRequired(true)
-                            .setMaxLength(500)
-                            .setPlaceholder('Briefly describe your issue or question...')
-                    )
-                );
-
-                return interaction.showModal(modal);
-            }
-
-            // ── Ticket: Claim ─────────────────────────────────────────────────
-            if (interaction.customId.startsWith('ticket_claim:')) {
-                const channelId = interaction.customId.split(':')[1];
-                const ticket    = getTicketData(client, channelId);
-
-                if (!ticket) return interaction.reply({ content: 'Ticket data not found.', flags: 64 });
-                if (ticket.claimedBy) {
-                    return interaction.reply({ content: `This ticket is already claimed by <@${ticket.claimedBy}>.`, flags: 64 });
-                }
-
-                const settings      = client.settings.get(interaction.guild.id) || {};
-                const supportRoleId = settings.ticketSupportRoleId;
-                const hasRole       = supportRoleId ? interaction.member.roles.cache.has(supportRoleId) : false;
-                const isAdmin       = interaction.member.permissions.has(PermissionFlagsBits.Administrator);
-
-                if (!hasRole && !isAdmin) {
-                    return interaction.reply({ content: 'Only support staff can claim tickets.', flags: 64 });
-                }
-
-                setTicketData(client, channelId, { claimedBy: interaction.user.id });
-                const freshTicket = getTicketData(client, channelId);
-
-                await interaction.deferUpdate();
-
-                if (freshTicket.ticketMessageId) {
-                    const msg = await interaction.channel.messages.fetch(freshTicket.ticketMessageId).catch(() => null);
-                    if (msg) {
-                        const { files, hasBanner, hasFooter } = getTicketAttachments();
-                        const container = buildUpdatedContainer(freshTicket, true, `${interaction.user}`, { hasBanner, hasFooter });
-                        await msg.edit({ components: [container], files, flags: CV2_FLAG }).catch(e => console.warn('[Claim] edit failed:', e.message));
-                    }
-                }
-                return;
-            }
-
-            // ── Ticket: Unclaim ───────────────────────────────────────────────
-            if (interaction.customId.startsWith('ticket_unclaim:')) {
-                const channelId = interaction.customId.split(':')[1];
-                const ticket    = getTicketData(client, channelId);
-
-                if (!ticket) return interaction.reply({ content: 'Ticket data not found.', flags: 64 });
-                if (ticket.claimedBy !== interaction.user.id) {
-                    return interaction.reply({ content: 'You are not the one who claimed this ticket.', flags: 64 });
-                }
-
-                setTicketData(client, channelId, { claimedBy: null });
-                const freshTicket = getTicketData(client, channelId);
-
-                await interaction.deferUpdate();
-
-                if (freshTicket.ticketMessageId) {
-                    const msg = await interaction.channel.messages.fetch(freshTicket.ticketMessageId).catch(() => null);
-                    if (msg) {
-                        const { files, hasBanner, hasFooter } = getTicketAttachments();
-                        const container = buildUpdatedContainer(freshTicket, false, null, { hasBanner, hasFooter });
-                        await msg.edit({ components: [container], files, flags: CV2_FLAG }).catch(e => console.warn('[Unclaim] edit failed:', e.message));
-                    }
-                }
-                return;
-            }
-
-            // ── Ticket: Force Close ───────────────────────────────────────────
-            if (interaction.customId.startsWith('ticket_close_force:')) {
-                const channelId = interaction.customId.split(':')[1];
-                const ticket    = getTicketData(client, channelId);
-
-                if (!ticket) return interaction.reply({ content: 'Ticket data not found.', flags: 64 });
-
-                const settings      = client.settings.get(interaction.guild.id) || {};
-                const supportRoleId = settings.ticketSupportRoleId;
-                const hasRole       = supportRoleId ? interaction.member.roles.cache.has(supportRoleId) : false;
-                const isAdmin       = interaction.member.permissions.has(PermissionFlagsBits.Administrator);
-                const isCreator     = interaction.user.id === ticket.creatorId;
-
-                if (!hasRole && !isAdmin && !isCreator) {
-                    return interaction.reply({ content: 'Only support staff or the ticket creator can close this ticket.', flags: 64 });
-                }
-
-                await interaction.deferReply({ flags: 64 });
-
-                const closingEmbed = new EmbedBuilder()
-                    .setColor(0xED4245)
-                    .setDescription(`This ticket is being closed by ${interaction.user}. Generating transcript...`);
-
-                await interaction.channel.send({ embeds: [closingEmbed] }).catch(() => {});
-                await closeTicket(interaction.channel, ticket, interaction.user, client);
-                return;
-            }
-
-            // ── Ticket: Accept Close Request ──────────────────────────────────
-            if (interaction.customId.startsWith('ticket_close_accept:')) {
-                const channelId = interaction.customId.split(':')[1];
-                const ticket    = getTicketData(client, channelId);
-
-                if (!ticket) return interaction.reply({ content: 'Ticket data not found.', flags: 64 });
-                if (interaction.user.id !== ticket.creatorId) {
-                    return interaction.reply({ content: 'Only the ticket creator can accept this close request.', flags: 64 });
-                }
-
-                await interaction.deferReply({ flags: 64 });
-
-                const disabledRow = new ActionRowBuilder().addComponents(
-                    new ButtonBuilder().setCustomId('_accepted').setLabel('Accepted').setStyle(ButtonStyle.Danger).setDisabled(true)
-                );
-
-                await interaction.message.edit({ components: [disabledRow] }).catch(() => {});
-
-                const closingEmbed = new EmbedBuilder()
-                    .setColor(0xED4245)
-                    .setDescription(`Close request accepted. Generating transcript...`);
-                await interaction.channel.send({ embeds: [closingEmbed] }).catch(() => {});
-
-                await closeTicket(interaction.channel, ticket, interaction.user, client);
-                return;
-            }
-
-            // ── Ticket: Decline Close Request ─────────────────────────────────
-            if (interaction.customId.startsWith('ticket_close_decline:')) {
-                const channelId = interaction.customId.split(':')[1];
-                const ticket    = getTicketData(client, channelId);
-
-                if (!ticket) return interaction.reply({ content: 'Ticket data not found.', flags: 64 });
-                if (interaction.user.id !== ticket.creatorId) {
-                    return interaction.reply({ content: 'Only the ticket creator can decline this close request.', flags: 64 });
-                }
-
-                const disabledRow = new ActionRowBuilder().addComponents(
-                    new ButtonBuilder().setCustomId('_declined').setLabel('Declined').setStyle(ButtonStyle.Secondary).setDisabled(true)
-                );
-
-                await interaction.update({ components: [disabledRow] });
-                await interaction.channel.send({
-                    embeds: [new EmbedBuilder().setColor(0xFEE75C).setDescription(`Close request declined by ${interaction.user}.`)]
-                });
-                return;
-            }
-
             // ── Infraction interaction guard ───────────────────────────────────
             if (interaction.customId.startsWith('inf_')) {
                 const { PermissionFlagsBits } = require('discord.js');
@@ -369,7 +205,7 @@ module.exports = {
             if (interaction.customId.startsWith('scflag_resolve:')) {
                 const HR_ROLE_ID   = '1487127238058180810';
                 const isHR         = interaction.member?.roles?.cache?.has(HR_ROLE_ID);
-                const isAdmin      = interaction.member?.permissions?.has(0x8n);
+                const isAdmin      = interaction.member?.permissions?.has(PermissionFlagsBits.Administrator);
 
                 if (!isHR && !isAdmin) {
                     return interaction.reply({
@@ -568,81 +404,6 @@ module.exports = {
 
         // ── Select menu interactions ───────────────────────────────────────────
         if (interaction.isStringSelectMenu()) {
-            // ── Ticket type select (panel dropdown) ────────────────────────────
-            if (interaction.customId === 'ticket_type_select') {
-                const selected = interaction.values[0];
-                let modal;
-
-                if (selected === 'general_support') {
-                    modal = new ModalBuilder()
-                        .setCustomId('ticket_open_modal')
-                        .setTitle('Open a Support Ticket');
-
-                    modal.addComponents(
-                        new ActionRowBuilder().addComponents(
-                            new TextInputBuilder()
-                                .setCustomId('ticket_reason')
-                                .setLabel('What do you need help with?')
-                                .setStyle(TextInputStyle.Paragraph)
-                                .setRequired(true)
-                                .setMaxLength(500)
-                                .setPlaceholder('Briefly describe your issue or question...')
-                        )
-                    );
-                } else if (selected === 'staff_report') {
-                    modal = new ModalBuilder()
-                        .setCustomId('staff_report_modal')
-                        .setTitle('Staff Report Submission');
-
-                    modal.addComponents(
-                        new LabelBuilder()
-                            .setLabel('Incident Description')
-                            .setTextInputComponent(
-                                new TextInputBuilder()
-                                    .setCustomId('report_description')
-                                    .setStyle(TextInputStyle.Paragraph)
-                                    .setRequired(true)
-                                    .setMinLength(20)
-                                    .setMaxLength(1000)
-                                    .setPlaceholder('Describe what happened, including what occurred and the circumstances.')
-                            ),
-                        new LabelBuilder()
-                            .setLabel('Reported Individual')
-                            .setUserSelectMenuComponent(
-                                new UserSelectMenuBuilder()
-                                    .setCustomId('reported_user')
-                                    .setRequired(true)
-                                    .setMaxValues(1)
-                                    .setPlaceholder('Select the individual being reported')
-                            ),
-                        new LabelBuilder()
-                            .setLabel('Supporting Evidence (Optional)')
-                            .setFileUploadComponent(
-                                new FileUploadBuilder()
-                                    .setCustomId('evidence_files')
-                                    .setRequired(false)
-                            ),
-                        new LabelBuilder()
-                            .setLabel('Video or Clip URL (Optional)')
-                            .setTextInputComponent(
-                                new TextInputBuilder()
-                                    .setCustomId('clip_url')
-                                    .setStyle(TextInputStyle.Short)
-                                    .setRequired(false)
-                                    .setMaxLength(500)
-                                    .setPlaceholder('https://...')
-                            ),
-                    );
-                }
-
-                if (modal) {
-                    await interaction.showModal(modal).catch(err => {
-                        if (err.code !== 10062) throw err;
-                    });
-                }
-                return;
-            }
-
             // ── Infraction case select ─────────────────────────────────────────
             if (interaction.customId.startsWith('inf_select:')) {
                 const { PermissionFlagsBits } = require('discord.js');
