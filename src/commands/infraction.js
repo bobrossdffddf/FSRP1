@@ -320,7 +320,7 @@ module.exports = {
                     },
                     {
                         name:   '\u200b',
-                        value:  `> This punishment is not subject to change. <@&${HR_ROLE_ID}> reviews concerns in a ticket.`,
+                        value:  `> This punishment is not subject to change. Direct concerns to <@&${HR_ROLE_ID}>.`,
                         inline: false,
                     },
                 )
