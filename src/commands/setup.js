@@ -3,9 +3,11 @@ const {
     PermissionFlagsBits,
     EmbedBuilder,
     ChannelType,
+    MessageFlags,
 } = require('discord.js');
 
 const { buildPriorityEmbed, buildPriorityRow } = require('../utils/priorityMessage');
+const { buildTicketPanelContainer, TICKET_FLAGS } = require('../utils/ticketPanel');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -35,7 +37,25 @@ module.exports = {
         .addRoleOption(option =>
             option.setName('flag_role_2').setDescription('Second management role to ping (e.g. Management Team).').setRequired(false))
         .addRoleOption(option =>
-            option.setName('flag_role_3').setDescription('Third management role to ping (e.g. Ownership Team).').setRequired(false)),
+            option.setName('flag_role_3').setDescription('Third management role to ping (e.g. Ownership Team).').setRequired(false))
+        // ── Welcome ────────────────────────────────────────────────────────────────
+        .addChannelOption(option =>
+            option.setName('welcome_channel').setDescription('Channel where new-member welcome messages are sent.').setRequired(false))
+        .addChannelOption(option =>
+            option.setName('departments_channel').setDescription('Channel linked in the welcome message for departments.').setRequired(false))
+        // ── Tickets ────────────────────────────────────────────────────────────────
+        .addChannelOption(option =>
+            option.setName('ticket_panel_channel').setDescription('Channel where the ticket-open panel is deployed.').setRequired(false))
+        .addChannelOption(option =>
+            option.setName('general_category').setDescription('Category new General Support tickets are created in.').setRequired(false))
+        .addChannelOption(option =>
+            option.setName('report_category').setDescription('Category new Staff / Player Report tickets are created in.').setRequired(false))
+        .addChannelOption(option =>
+            option.setName('ia_category').setDescription('Category new Internal Affairs tickets are created in.').setRequired(false))
+        .addChannelOption(option =>
+            option.setName('transcript_channel').setDescription('Channel where ticket transcripts are archived on close.').setRequired(false))
+        .addRoleOption(option =>
+            option.setName('ticket_support_role').setDescription('Role that can view/manage/claim tickets.').setRequired(false)),
 
     async execute(interaction, client) {
         if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
@@ -56,10 +76,21 @@ module.exports = {
         const flagRole1               = interaction.options.getRole('flag_role_1');
         const flagRole2               = interaction.options.getRole('flag_role_2');
         const flagRole3               = interaction.options.getRole('flag_role_3');
+        const welcomeChannel          = interaction.options.getChannel('welcome_channel');
+        const departmentsChannel      = interaction.options.getChannel('departments_channel');
+        const ticketPanelChannel      = interaction.options.getChannel('ticket_panel_channel');
+        const generalCategory         = interaction.options.getChannel('general_category');
+        const reportCategory          = interaction.options.getChannel('report_category');
+        const iaCategory              = interaction.options.getChannel('ia_category');
+        const transcriptChannel       = interaction.options.getChannel('transcript_channel');
+        const ticketSupportRole       = interaction.options.getRole('ticket_support_role');
 
         const nothingProvided = !ssuChannel && !pingRole && !logsChannel && !priorityChannel
             && !infractionChannel && !promotionChannel && !staffRequestChannel && !shiftChannel
-            && !flagChannel && !flagRole1 && !flagRole2 && !flagRole3;
+            && !flagChannel && !flagRole1 && !flagRole2 && !flagRole3
+            && !welcomeChannel && !departmentsChannel
+            && !ticketPanelChannel && !generalCategory && !reportCategory && !iaCategory
+            && !transcriptChannel && !ticketSupportRole;
 
         const buildConfigFields = (cfg) => [
             { name: '📢 SSU Channel',              value: cfg.ssuChannelId              ? `<#${cfg.ssuChannelId}>`              : 'Not configured', inline: true },
@@ -76,6 +107,14 @@ module.exports = {
                 value: cfg.flagRoleIds?.length ? cfg.flagRoleIds.map(id => `<@&${id}>`).join(' ') : 'Not configured',
                 inline: false,
             },
+            { name: '👋 Welcome Channel',          value: cfg.welcomeChannelId          ? `<#${cfg.welcomeChannelId}>`          : 'Not configured', inline: true },
+            { name: '🏛️ Departments Channel',      value: cfg.departmentsChannelId      ? `<#${cfg.departmentsChannelId}>`      : 'Not configured', inline: true },
+            { name: '🎟️ Ticket Panel Channel',     value: cfg.ticketPanelChannelId      ? `<#${cfg.ticketPanelChannelId}>`      : 'Not configured', inline: true },
+            { name: '📁 General Category',         value: cfg.ticketCategoryId          ? `<#${cfg.ticketCategoryId}>`          : 'Not configured', inline: true },
+            { name: '📁 Report Category',          value: cfg.reportCategoryId          ? `<#${cfg.reportCategoryId}>`          : 'Not configured (uses General)', inline: true },
+            { name: '📁 IA Category',              value: cfg.iaCategoryId              ? `<#${cfg.iaCategoryId}>`              : 'Not configured (uses General)', inline: true },
+            { name: '📜 Transcript Channel',       value: cfg.ticketTranscriptChannelId ? `<#${cfg.ticketTranscriptChannelId}>` : 'Not configured', inline: true },
+            { name: '🛡️ Ticket Support Role',      value: cfg.ticketSupportRoleId       ? `<@&${cfg.ticketSupportRoleId}>`      : 'Not configured', inline: true },
         ];
 
         if (nothingProvided) {
@@ -102,6 +141,13 @@ module.exports = {
         if (staffRequestChannel) updates.staffRequestChannelId  = staffRequestChannel.id;
         if (shiftChannel)        updates.shiftChannelId         = shiftChannel.id;
         if (flagChannel)         updates.flagChannelId           = flagChannel.id;
+        if (welcomeChannel)      updates.welcomeChannelId       = welcomeChannel.id;
+        if (departmentsChannel)  updates.departmentsChannelId   = departmentsChannel.id;
+        if (generalCategory)     updates.ticketCategoryId       = generalCategory.id;
+        if (reportCategory)      updates.reportCategoryId       = reportCategory.id;
+        if (iaCategory)          updates.iaCategoryId           = iaCategory.id;
+        if (transcriptChannel)   updates.ticketTranscriptChannelId = transcriptChannel.id;
+        if (ticketSupportRole)   updates.ticketSupportRoleId    = ticketSupportRole.id;
 
         if (flagRole1 || flagRole2 || flagRole3) {
             const newIds = [flagRole1, flagRole2, flagRole3].filter(Boolean).map(r => r.id);
@@ -113,6 +159,10 @@ module.exports = {
             updates.priorityChannelId = priorityChannel.id;
         }
 
+        if (ticketPanelChannel) {
+            updates.ticketPanelChannelId = ticketPanelChannel.id;
+        }
+
         client.settings.set(guildId, { ...existing, ...updates });
 
         if (priorityChannel) {
@@ -120,6 +170,20 @@ module.exports = {
                 .then(sent => { updates.priorityMessageId = sent.id; })
                 .catch(e => console.error('[Setup] Failed to send priority button:', e.message));
             client.settings.set(guildId, { ...existing, ...updates });
+        }
+
+        if (ticketPanelChannel) {
+            try {
+                const container = buildTicketPanelContainer();
+                const sent = await ticketPanelChannel.send({
+                    components: [container],
+                    flags: TICKET_FLAGS,
+                });
+                updates.ticketPanelMessageId = sent.id;
+                client.settings.set(guildId, { ...existing, ...updates });
+            } catch (e) {
+                console.error('[Setup] Failed to deploy ticket panel:', e.message);
+            }
         }
 
         const saved = client.settings.get(guildId);
