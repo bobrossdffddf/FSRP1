@@ -14,10 +14,11 @@ const {
 const { getAssetUrl } = require('./assetServer');
 
 const LOGO_URL = 'https://i.postimg.cc/T1K1HQCs/FSR-logo-with-tropical-scene.webp';
-const ACCENT   = 0x4B5EFC;
+const ACCENT   = 0xE6B300;
 
 function buildTicketPanelContainer() {
     const bannerUrl = getAssetUrl('banner.png');
+    const footerUrl = getAssetUrl('footer.png');
 
     const container = new ContainerBuilder().setAccentColor(ACCENT);
 
@@ -70,6 +71,17 @@ function buildTicketPanelContainer() {
                     )
             )
         );
+
+    if (footerUrl) {
+        container.addSeparatorComponents(
+            new SeparatorBuilder().setDivider(false).setSpacing(1)
+        );
+        container.addMediaGalleryComponents(
+            new MediaGalleryBuilder().addItems([
+                new MediaGalleryItemBuilder().setURL(footerUrl),
+            ])
+        );
+    }
 
     return container;
 }
