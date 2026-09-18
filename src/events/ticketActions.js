@@ -20,7 +20,7 @@ const { getRobloxUser, getRobloxHeadshot } = require('../api/roblox');
 const { getAssetUrl }                     = require('../utils/assetServer');
 
 const LOGO_URL   = 'https://i.postimg.cc/T1K1HQCs/FSR-logo-with-tropical-scene.webp';
-const ACCENT     = 0x4B5EFC;
+const ACCENT     = 0xE6B300;
 const CV2_FLAG   = MessageFlags.IsComponentsV2;
 
 // Resolved once per session from the local asset server
@@ -325,7 +325,7 @@ async function createStaffReportTicket(interaction, client, opts) {
     const reporter = interaction.member;
     const settings = client.settings.get(guild.id) || {};
 
-    const categoryId    = settings.ticketCategoryId;
+    const categoryId    = settings.reportCategoryId || settings.ticketCategoryId;
     const supportRoleId = settings.ticketSupportRoleId;
 
     const ticketNum   = nextTicketNumber(client, guild.id);
