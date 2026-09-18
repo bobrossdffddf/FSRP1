@@ -3,6 +3,7 @@ const {
     EmbedBuilder,
 } = require('discord.js');
 const { getTicketData } = require('../utils/ticketManager');
+const { getAssetUrl } = require('../utils/assetServer');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -45,14 +46,19 @@ module.exports = {
 
             const embed = new EmbedBuilder()
                 .setTitle('Ticket Renamed')
-                .setColor(0x57F287)
+                .setColor(0xE6B300)
                 .setDescription(`This ticket channel has been renamed by ${interaction.user}.`)
                 .addFields(
                     { name: 'Previous Name', value: `\`${oldName}\``, inline: true },
                     { name: 'New Name', value: `\`${newName}\``, inline: true },
                 )
                 .setTimestamp()
-                .setFooter({ text: 'Florida State Roleplay' });
+                .setFooter({ text: 'Florida State Roleplay — Ticket System' });
+
+            const bnr = getAssetUrl('banner.png');
+            const ftr = getAssetUrl('footer.png');
+            if (bnr) embed.setImage(bnr);
+            if (ftr) embed.setThumbnail(ftr);
 
             await interaction.channel.send({ embeds: [embed] });
             await interaction.editReply({ content: `Channel renamed to \`${newName}\`.` });

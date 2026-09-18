@@ -4,8 +4,17 @@ const {
     EmbedBuilder,
 } = require('discord.js');
 const { getTicketData } = require('../utils/ticketManager');
+const { getAssetUrl } = require('../utils/assetServer');
 
 const SUPPORT_ROLE_ID = '1488210128187560169';
+
+function decorateEmbed(embed) {
+    const banner = getAssetUrl('banner.png');
+    const footer = getAssetUrl('footer.png');
+    if (banner) embed.setImage(banner);
+    if (footer) embed.setThumbnail(footer);
+    return embed.setFooter({ text: 'Florida State Roleplay — Ticket System' });
+}
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -79,10 +88,10 @@ module.exports = {
                     AttachFiles:        true,
                 });
 
-                const embed = new EmbedBuilder()
+                const embed = decorateEmbed(new EmbedBuilder()
                     .setColor(0x57F287)
                     .setDescription(`✅ ${target} has been added to this ticket by ${interaction.user}.`)
-                    .setTimestamp();
+                    .setTimestamp());
 
                 return interaction.reply({ embeds: [embed] });
             } catch (err) {
@@ -109,10 +118,10 @@ module.exports = {
                     ReadMessageHistory: false,
                 });
 
-                const embed = new EmbedBuilder()
+                const embed = decorateEmbed(new EmbedBuilder()
                     .setColor(0xED4245)
                     .setDescription(`🚫 ${target} has been removed from this ticket by ${interaction.user}.`)
-                    .setTimestamp();
+                    .setTimestamp());
 
                 return interaction.reply({ embeds: [embed] });
             } catch (err) {

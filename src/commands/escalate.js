@@ -4,6 +4,7 @@ const {
     EmbedBuilder,
 } = require('discord.js');
 const { getTicketData, setTicketData } = require('../utils/ticketManager');
+const { getAssetUrl } = require('../utils/assetServer');
 
 const ESCALATION_LEVELS = {
     Management:   'managementCategoryId',
@@ -95,14 +96,19 @@ module.exports = {
 
             const embed = new EmbedBuilder()
                 .setTitle('Ticket Escalated')
-                .setColor(0xFEE75C)
+                .setColor(0xE6B300)
                 .setDescription(`This ticket has been escalated to **${level}** by ${interaction.user}.`)
                 .addFields(
                     { name: 'Escalated By', value: `${interaction.user}`, inline: true },
                     { name: 'Escalation Level', value: level, inline: true },
                 )
                 .setTimestamp()
-                .setFooter({ text: 'Florida State Roleplay' });
+                .setFooter({ text: 'Florida State Roleplay — Ticket System' });
+
+            const bnr = getAssetUrl('banner.png');
+            const ftr = getAssetUrl('footer.png');
+            if (bnr) embed.setImage(bnr);
+            if (ftr) embed.setThumbnail(ftr);
 
             await interaction.channel.send({ embeds: [embed] });
             await interaction.editReply({ content: `Ticket successfully escalated to **${level}**.` });
