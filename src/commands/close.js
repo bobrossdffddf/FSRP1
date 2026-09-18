@@ -7,6 +7,7 @@ const {
 } = require('discord.js');
 const { getTicketData, deleteTicketData } = require('../utils/ticketManager');
 const { buildTranscript } = require('../utils/transcriptBuilder');
+const { getAssetUrl } = require('../utils/assetServer');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -45,7 +46,7 @@ module.exports = {
             return interaction.reply({ content: 'Only the staff member who claimed this ticket or the ticket creator can use this command.', flags: 64 });
         }
 
-        // ── /close request ──────────────────────────────────────────────────────
+        // ── /close request ────────────────────────────────────────────────────────────────
         if (sub === 'request') {
             if (!isClaimer) {
                 return interaction.reply({ content: 'Only the staff member who claimed this ticket can send a close request.', flags: 64 });
@@ -55,7 +56,7 @@ module.exports = {
 
             const requestEmbed = new EmbedBuilder()
                 .setTitle('📋 Close Request')
-                .setColor(0xED4245)
+                .setColor(0xE6B300)
                 .setDescription(
                     `<@${ticket.creatorId}>, the staff member handling your ticket has requested to close it.\n` +
                     `Please review the reason below and accept or decline.`
@@ -67,6 +68,11 @@ module.exports = {
                 )
                 .setTimestamp()
                 .setFooter({ text: 'You have 5 minutes to accept or decline.' });
+
+            const bannerUrl = getAssetUrl('banner.png');
+            const footerUrl = getAssetUrl('footer.png');
+            if (bannerUrl) requestEmbed.setImage(bannerUrl);
+            if (footerUrl) requestEmbed.setThumbnail(footerUrl);
 
             const row = new ActionRowBuilder().addComponents(
                 new ButtonBuilder()
@@ -103,7 +109,7 @@ module.exports = {
             return;
         }
 
-        // ── /close now ──────────────────────────────────────────────────────────
+        // ── /close now ───────────────────────────────────────────────────────────────────────
         if (sub === 'now') {
             await interaction.deferReply({ flags: 64 });
             await closeTicket(interaction.channel, ticket, interaction.user, client);
@@ -143,14 +149,21 @@ async function closeTicket(channel, ticket, closedBy, client) {
                 if (creator) {
                     const dmEmbed = new EmbedBuilder()
                         .setTitle('Your Ticket Has Been Closed')
-                        .setColor(0x2B2D75)
+                        .setColor(0xE6B300)
                         .setDescription(`Your ticket in **${channel.guild.name}** has been closed.`)
                         .addFields(
                             { name: 'Ticket',    value: `#${ticket.ticketNumber || channel.name}`, inline: true },
                             { name: 'Closed By', value: closedBy?.username || 'Staff',             inline: true },
                             { name: 'Reason',    value: ticket.reason || 'No reason provided',     inline: false },
                         )
-                        .setTimestamp();
+                        .setTimestamp()
+                        .setFooter({ text: 'Florida State Roleplay — Ticket System' });
+
+                    const dmBanner = getAssetUrl('banner.png');
+                    const dmFooter = getAssetUrl('footer.png');
+                    if (dmBanner) dmEmbed.setImage(dmBanner);
+                    if (dmFooter) dmEmbed.setThumbnail(dmFooter);
+
                     await creator.send({ embeds: [dmEmbed], files: [attachment] }).catch(() => {});
                 }
             } catch {}

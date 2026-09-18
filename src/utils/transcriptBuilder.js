@@ -1,4 +1,5 @@
 const { AttachmentBuilder, EmbedBuilder } = require('discord.js');
+const { getAssetUrl } = require('./assetServer');
 
 async function buildTranscript(channel, ticketData, closedBy) {
     const messages = [];
@@ -69,9 +70,12 @@ async function buildTranscript(channel, ticketData, closedBy) {
         name: `transcript-ticket-${ticketData.ticketNumber || channel.name}.txt`,
     });
 
+    const bannerUrl = getAssetUrl('banner.png');
+    const footerUrl = getAssetUrl('footer.png');
+
     const embed = new EmbedBuilder()
         .setTitle(`📄 Ticket Transcript — #${channel.name}`)
-        .setColor(0x2B2D75)
+        .setColor(0xE6B300)
         .addFields(
             { name: 'Ticket Number', value: `#${ticketData.ticketNumber || '?'}`,         inline: true },
             { name: 'Opened By',     value: `<@${ticketData.creatorId}>`,                 inline: true },
@@ -80,7 +84,10 @@ async function buildTranscript(channel, ticketData, closedBy) {
             { name: 'Total Messages',value: `${unique.length}`,                           inline: true },
         )
         .setTimestamp()
-        .setFooter({ text: 'Ticket System' });
+        .setFooter({ text: 'Florida State Roleplay — Ticket System' });
+
+    if (bannerUrl) embed.setImage(bannerUrl);
+    if (footerUrl) embed.setThumbnail(footerUrl);
 
     return { embed, attachment };
 }
